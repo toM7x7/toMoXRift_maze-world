@@ -14,7 +14,7 @@ import {
   DOROKEI_JAIL_RETURN_COOLDOWN_MS,
   DOROKEI_JAIL_RETURN_RADIUS,
   DOROKEI_JAIL_SPAWN,
-  DOROKEI_LOBBY_SPAWN,
+  DOROKEI_RADAR_PERIOD_MS,
   DOROKEI_RESCUE_RADIUS,
   DOROKEI_RELEASE_SPAWN,
   createInitialDorokeiGameState,
@@ -31,6 +31,11 @@ const LOCAL_DEV_USER: User = {
   displayName: 'Local Player',
   avatarUrl: null,
   isGuest: true,
+}
+const DOROKEI_JAIL_GATE_TOUCH_POSITION = {
+  x: 7.12,
+  y: 0,
+  z: 16.85,
 }
 
 function horizontalDistance(a: PlayerMovement['position'], b: PlayerMovement['position']) {
@@ -173,8 +178,7 @@ export function useDorokeiGame() {
       lastCapture: null,
       lastRescue: null,
     }))
-    teleport({ position: DOROKEI_LOBBY_SPAWN, yaw: 180 })
-  }, [setState, teleport])
+  }, [setState])
 
   const resetRound = useCallback(() => {
     setState((current) => ({
@@ -182,8 +186,7 @@ export function useDorokeiGame() {
       rolesByUserId: current.rolesByUserId,
       lastResetAt: Date.now(),
     }))
-    teleport({ position: DOROKEI_LOBBY_SPAWN, yaw: 180 })
-  }, [setState, teleport])
+  }, [setState])
 
   const captureRunner = useCallback(
     (runnerId: string, distance = 0) => {
@@ -360,7 +363,7 @@ export function useDorokeiGame() {
     setState((current) => ({
       ...current,
       phase: 'running',
-      roundStartedAt: Date.now(),
+      roundStartedAt: Date.now() - DOROKEI_RADAR_PERIOD_MS,
       roundEndedAt: null,
     }))
   }, [setState])
@@ -370,8 +373,7 @@ export function useDorokeiGame() {
       ...createInitialDorokeiGameState(),
       lastResetAt: Date.now(),
     })
-    teleport({ position: DOROKEI_LOBBY_SPAWN, yaw: 180 })
-  }, [setState, teleport])
+  }, [setState])
 
   useEffect(() => {
     if (lastLocalJailedRef.current === localJailed) {
@@ -448,6 +450,14 @@ export function useDorokeiGame() {
 
     if (localRole === 'runner') {
       if (now - lastRescueAtRef.current < DOROKEI_ACTION_COOLDOWN_MS) {
+        return
+      }
+
+      if (
+        horizontalDistance(localPosition, DOROKEI_JAIL_GATE_TOUCH_POSITION) <= DOROKEI_RESCUE_RADIUS
+      ) {
+        lastRescueAtRef.current = now
+        rescueAll()
         return
       }
 

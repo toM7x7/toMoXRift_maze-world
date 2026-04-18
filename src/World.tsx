@@ -49,6 +49,7 @@ const INITIAL_RUN_STATE: MazeRunState = {
 
 const GATE_OPEN_MS = 20_000
 const HUB_SPAWN: [number, number, number] = [0, 0, 17.5]
+const HUB_YAW = 0
 
 const OUTER_WALLS: WallSpec[] = [
   { position: [0, 1.5, 20], size: [44, 3, 1] },
@@ -187,18 +188,21 @@ function ModeSelector({
   onSelect: (mode: WorldMode) => void
 }) {
   return (
-    <group position={[0, 1.05, 16.18]} scale={0.38}>
+    <group position={[-21.42, 1.7, 14.4]} rotation={[0, Math.PI / 2, 0]} scale={0.34}>
       <mesh position={[0, 0, -0.07]}>
-        <boxGeometry args={[5.1, 1.12, 0.12]} />
+        <boxGeometry args={[4.2, 1.42, 0.12]} />
         <meshStandardMaterial color="#0f172a" emissive="#111827" emissiveIntensity={0.42} transparent opacity={0.88} />
       </mesh>
-      <Text position={[0, 0.34, 0.04]} fontSize={0.14} color="#f8fafc" anchorX="center" anchorY="middle">
+      <Text position={[0, 0.46, 0.04]} fontSize={0.16} color="#f8fafc" anchorX="center" anchorY="middle">
         ワールドモード
       </Text>
-      <group position={[-1.08, -0.18, 0.05]}>
+      <Text position={[0, 0.23, 0.04]} fontSize={0.08} color="#cbd5e1" anchorX="center" anchorY="middle">
+        切替しても現在位置は保持
+      </Text>
+      <group position={[-1.08, -0.24, 0.05]}>
         <ModeButton mode="maze" active={mode === 'maze'} label="迷路" color="#2563eb" onSelect={onSelect} />
       </group>
-      <group position={[1.08, -0.18, 0.05]}>
+      <group position={[1.08, -0.24, 0.05]}>
         <ModeButton mode="dorokei" active={mode === 'dorokei'} label="ドロケイ" color="#dc2626" onSelect={onSelect} />
       </group>
     </group>
@@ -292,6 +296,7 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
 
   const isMazeMode = worldMode === 'maze'
   const isDorokeiMode = worldMode === 'dorokei'
+  const showLabyrinthWalls = isMazeMode || isDorokeiMode
   const allBeaconsOn = runState.beacons.a && runState.beacons.b && runState.beacons.c
   const gateTimeLeftMs = runState.gateOpen && runState.gateOpenedAt
     ? Math.max(0, GATE_OPEN_MS - (now - runState.gateOpenedAt))
@@ -304,7 +309,7 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
 
     didTeleportOnMountRef.current = true
     const timeoutId = window.setTimeout(() => {
-      teleport({ position: HUB_SPAWN, yaw: 180 })
+      teleport({ position: HUB_SPAWN, yaw: HUB_YAW })
     }, 120)
 
     return () => window.clearTimeout(timeoutId)
@@ -374,12 +379,11 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
     }
 
     setRunState(INITIAL_RUN_STATE)
-    teleport({ position: HUB_SPAWN, yaw: 180 })
+    teleport({ position: HUB_SPAWN, yaw: HUB_YAW })
   }
 
   const selectWorldMode = (nextMode: WorldMode) => {
     setWorldMode(nextMode)
-    teleport({ position: HUB_SPAWN, yaw: 180 })
 
     if (nextMode === 'maze') {
       setRunState(INITIAL_RUN_STATE)
@@ -448,17 +452,17 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
         </mesh>
       </RigidBody>
 
-      <SpawnPoint position={HUB_SPAWN} yaw={180} />
+      <SpawnPoint position={HUB_SPAWN} yaw={HUB_YAW} />
       <ModeSelector mode={worldMode} onSelect={selectWorldMode} />
 
       {OUTER_WALLS.map((wall, index) => (
         <Wall key={`outer-${index}`} {...wall} />
       ))}
+      {showLabyrinthWalls && MAZE_WALLS.map((wall, index) => (
+        <Wall key={`maze-${index}`} {...wall} />
+      ))}
       {isMazeMode && (
         <>
-          {MAZE_WALLS.map((wall, index) => (
-            <Wall key={`maze-${index}`} {...wall} />
-          ))}
           {GOAL_ROOM_WALLS.map((wall, index) => (
             <Wall key={`goal-${index}`} {...wall} />
           ))}

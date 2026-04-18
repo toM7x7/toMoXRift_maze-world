@@ -107,9 +107,9 @@ export const DOROKEI_RELEASE_SPAWN: Triple = [3.5, 0, 17.4]
 
 export const DOROKEI_LOBBY_SPAWN: Triple = [0, 0, 17.5]
 
-export const CAPTURE_RADIUS = 1.6
+export const CAPTURE_RADIUS = 0.75
 
-export const RESCUE_RADIUS = 1.9
+export const RESCUE_RADIUS = 0.75
 
 export const DOROKEI_CAPTURE_RADIUS = CAPTURE_RADIUS
 

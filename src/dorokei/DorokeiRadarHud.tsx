@@ -119,7 +119,16 @@ const getPulseState = (roundStartedAt: number | null, nowMs: number) => {
   }
 
   const elapsedMs = nowMs - roundStartedAt
-  const phaseMs = ((elapsedMs % PULSE_PERIOD_MS) + PULSE_PERIOD_MS) % PULSE_PERIOD_MS
+  if (elapsedMs < PULSE_PERIOD_MS) {
+    return {
+      visible: false,
+      phaseMs: elapsedMs,
+      remainingMs: PULSE_PERIOD_MS - elapsedMs,
+    }
+  }
+
+  const activeElapsedMs = elapsedMs - PULSE_PERIOD_MS
+  const phaseMs = ((activeElapsedMs % PULSE_PERIOD_MS) + PULSE_PERIOD_MS) % PULSE_PERIOD_MS
   const visible = phaseMs < PULSE_WINDOW_MS
   const remainingMs = visible ? PULSE_WINDOW_MS - phaseMs : PULSE_PERIOD_MS - phaseMs
 
