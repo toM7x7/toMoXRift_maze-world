@@ -1,7 +1,6 @@
 import { RigidBody } from '@react-three/rapier'
 import { Text } from '@react-three/drei'
 import { useEffect, useRef, useState } from 'react'
-import { BackSide } from 'three'
 import {
   EntryLogBoard,
   Interactable,
@@ -11,9 +10,24 @@ import {
   useTeleport,
 } from '@xrift/world-components'
 import { DorokeiControlLayer } from './dorokei/DorokeiControlLayer'
+import {
+  FACILITY_BEACONS,
+  FACILITY_BOARDS,
+  FACILITY_CLEAR_LOG_LIMIT,
+  FACILITY_COLORS,
+  FACILITY_GATE_OPEN_MS,
+  FACILITY_SPAWN,
+  FACILITY_WALLS,
+  type BeaconKey,
+  type FacilityMode,
+} from './facility/facility'
+import { BriefingBoard } from './facility/BriefingBoard'
+import { ModeSelectorBoard } from './facility/ModeSelectorBoard'
+import { Skybox } from './facility/Skybox'
+import { Wall } from './facility/Wall'
+import { getFacilityVisibility } from './facility/visibility'
 
-type BeaconKey = 'a' | 'b' | 'c'
-type WorldMode = 'maze' | 'dorokei'
+type WorldMode = FacilityMode
 
 interface MazeRunState {
   beacons: Record<BeaconKey, boolean>
@@ -33,60 +47,12 @@ export interface WorldProps {
   scale?: number
 }
 
-interface WallSpec {
-  position: [number, number, number]
-  size: [number, number, number]
-  color?: string
-}
-
 const INITIAL_RUN_STATE: MazeRunState = {
   beacons: { a: false, b: false, c: false },
   gateOpen: false,
   gateOpenedAt: null,
   runStartedAt: null,
   completedAt: null,
-}
-
-const GATE_OPEN_MS = 20_000
-const HUB_SPAWN: [number, number, number] = [0, 0, 17.5]
-const HUB_YAW = 0
-
-const OUTER_WALLS: WallSpec[] = [
-  { position: [0, 1.5, 20], size: [44, 3, 1] },
-  { position: [0, 1.5, -24], size: [44, 3, 1] },
-  { position: [-22, 1.5, -2], size: [1, 3, 44] },
-  { position: [22, 1.5, -2], size: [1, 3, 44] },
-  { position: [-6, 1.5, 12], size: [4, 3, 1] },
-  { position: [6, 1.5, 12], size: [4, 3, 1] },
-  { position: [-12, 1.5, 16], size: [1, 3, 8] },
-  { position: [12, 1.5, 16], size: [1, 3, 8] },
-]
-
-const MAZE_WALLS: WallSpec[] = [
-  { position: [-10, 1.5, 1], size: [1, 3, 18], color: '#571616' },
-  { position: [-2, 1.5, -2], size: [1, 3, 20], color: '#1d274f' },
-  { position: [6, 1.5, 1], size: [1, 3, 18], color: '#1a4f2c' },
-  { position: [14, 1.5, -3], size: [1, 3, 22], color: '#2e3542' },
-  { position: [-12, 1.5, 6], size: [12, 3, 1], color: '#571616' },
-  { position: [-1, 1.5, 2], size: [10, 3, 1], color: '#1d274f' },
-  { position: [11, 1.5, -2], size: [14, 3, 1], color: '#1a4f2c' },
-  { position: [-11, 1.5, -6], size: [14, 3, 1], color: '#571616' },
-  { position: [4, 1.5, -10], size: [16, 3, 1], color: '#1d274f' },
-  { position: [15, 1.5, -14], size: [6, 3, 1], color: '#1a4f2c' },
-  { position: [-9, 1.5, -14], size: [18, 3, 1], color: '#2e3542' },
-  { position: [0, 1.5, -16], size: [34, 3, 1], color: '#2e3542' },
-]
-
-const GOAL_ROOM_WALLS: WallSpec[] = [
-  { position: [-8, 1.5, -20], size: [1, 3, 8], color: '#4a4530' },
-  { position: [8, 1.5, -20], size: [1, 3, 8], color: '#4a4530' },
-  { position: [0, 1.5, -24], size: [16, 3, 1], color: '#4a4530' },
-]
-
-const BEACON_CONFIG: Record<BeaconKey, { label: string; color: string; position: [number, number, number] }> = {
-  a: { label: 'ビーコンA', color: '#e74c3c', position: [-15, 0.6, 8] },
-  b: { label: 'ビーコンB', color: '#3498db', position: [1, 0.6, -5] },
-  c: { label: 'ビーコンC', color: '#2ecc71', position: [15, 0.6, -12] },
 }
 
 const TAGS = [
@@ -96,118 +62,8 @@ const TAGS = [
   { id: 'replay', label: '再挑戦', color: '#f59e0b' },
 ]
 
-const SKY_STARS: Array<[number, number, number, number]> = Array.from({ length: 56 }, (_, index) => {
-  const angle = index * 2.399963229728653
-  const height = 42 + (index % 9) * 7.5
-  const radius = 84 + (index % 5) * 10
-  return [
-    Math.cos(angle) * radius,
-    height,
-    Math.sin(angle) * radius,
-    0.08 + (index % 4) * 0.025,
-  ]
-})
-
-function Wall({ position, size, color = '#353c4e' }: WallSpec) {
-  return (
-    <RigidBody type="fixed" colliders="cuboid" restitution={0} friction={0.9}>
-      <mesh position={position} castShadow receiveShadow>
-        <boxGeometry args={size} />
-        <meshStandardMaterial color={color} />
-      </mesh>
-    </RigidBody>
-  )
-}
-
-function ProceduralSkybox() {
-  return (
-    <group>
-      <mesh>
-        <sphereGeometry args={[170, 48, 24]} />
-        <meshBasicMaterial color="#071328" side={BackSide} />
-      </mesh>
-      <mesh position={[0, 22, -82]} rotation={[0, 0, 0]}>
-        <torusGeometry args={[44, 0.18, 8, 96]} />
-        <meshBasicMaterial color="#1d4ed8" transparent opacity={0.22} />
-      </mesh>
-      <mesh position={[-42, 58, -74]}>
-        <sphereGeometry args={[4.8, 24, 12]} />
-        <meshBasicMaterial color="#fef3c7" transparent opacity={0.92} />
-      </mesh>
-      {SKY_STARS.map(([x, y, z, radius], index) => (
-        <mesh key={`sky-star-${index}`} position={[x, y, z]}>
-          <sphereGeometry args={[radius, 8, 8]} />
-          <meshBasicMaterial color={index % 5 === 0 ? '#bfdbfe' : '#f8fafc'} />
-        </mesh>
-      ))}
-    </group>
-  )
-}
-
-function ModeButton({
-  mode,
-  active,
-  label,
-  color,
-  onSelect,
-}: {
-  mode: WorldMode
-  active: boolean
-  label: string
-  color: string
-  onSelect: (mode: WorldMode) => void
-}) {
-  return (
-    <Interactable
-      id={`echo-maze-mode-${mode}`}
-      interactionText={`${label}に切り替え`}
-      onInteract={() => onSelect(mode)}
-    >
-      <RigidBody type="fixed" colliders="cuboid">
-        <mesh castShadow>
-          <boxGeometry args={[1.85, 0.5, 0.22]} />
-          <meshStandardMaterial
-            color={active ? '#f8fafc' : color}
-            emissive={color}
-            emissiveIntensity={active ? 0.8 : 0.34}
-          />
-        </mesh>
-      </RigidBody>
-      <Text position={[0, 0, 0.15]} fontSize={0.14} color={active ? '#0f172a' : '#ffffff'} anchorX="center" anchorY="middle">
-        {active ? `${label}中` : label}
-      </Text>
-    </Interactable>
-  )
-}
-
-function ModeSelector({
-  mode,
-  onSelect,
-}: {
-  mode: WorldMode
-  onSelect: (mode: WorldMode) => void
-}) {
-  return (
-    <group position={[-21.42, 1.7, 14.4]} rotation={[0, Math.PI / 2, 0]} scale={0.34}>
-      <mesh position={[0, 0, -0.07]}>
-        <boxGeometry args={[4.2, 1.42, 0.12]} />
-        <meshStandardMaterial color="#0f172a" emissive="#111827" emissiveIntensity={0.42} transparent opacity={0.88} />
-      </mesh>
-      <Text position={[0, 0.46, 0.04]} fontSize={0.16} color="#f8fafc" anchorX="center" anchorY="middle">
-        ワールドモード
-      </Text>
-      <Text position={[0, 0.23, 0.04]} fontSize={0.08} color="#cbd5e1" anchorX="center" anchorY="middle">
-        切替しても現在位置は保持
-      </Text>
-      <group position={[-1.08, -0.24, 0.05]}>
-        <ModeButton mode="maze" active={mode === 'maze'} label="迷路" color="#2563eb" onSelect={onSelect} />
-      </group>
-      <group position={[1.08, -0.24, 0.05]}>
-        <ModeButton mode="dorokei" active={mode === 'dorokei'} label="ドロケイ" color="#dc2626" onSelect={onSelect} />
-      </group>
-    </group>
-  )
-}
+const HUB_SPAWN = [...FACILITY_SPAWN.position] as [number, number, number]
+const HUB_YAW = FACILITY_SPAWN.yaw
 
 interface BeaconSwitchProps {
   beacon: BeaconKey
@@ -216,10 +72,10 @@ interface BeaconSwitchProps {
 }
 
 function BeaconSwitch({ beacon, activated, onActivate }: BeaconSwitchProps) {
-  const config = BEACON_CONFIG[beacon]
+  const config = FACILITY_BEACONS[beacon]
 
   return (
-    <group position={config.position}>
+    <group position={[...config.position]}>
       <Interactable
         id={`echo-maze-${beacon}`}
         interactionText={activated ? `${config.label}は起動済み` : `${config.label}を起動`}
@@ -293,13 +149,14 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
   )
   const [now, setNow] = useState(() => Date.now())
   const didTeleportOnMountRef = useRef(false)
+  const facilityVisibility = getFacilityVisibility(worldMode)
 
-  const isMazeMode = worldMode === 'maze'
-  const isDorokeiMode = worldMode === 'dorokei'
-  const showLabyrinthWalls = isMazeMode || isDorokeiMode
+  const isMazeMode = facilityVisibility.mazeObjectives
+  const isDorokeiMode = facilityVisibility.dorokeiLayer
+  const showLabyrinthWalls = facilityVisibility.sharedWalls
   const allBeaconsOn = runState.beacons.a && runState.beacons.b && runState.beacons.c
   const gateTimeLeftMs = runState.gateOpen && runState.gateOpenedAt
-    ? Math.max(0, GATE_OPEN_MS - (now - runState.gateOpenedAt))
+    ? Math.max(0, FACILITY_GATE_OPEN_MS - (now - runState.gateOpenedAt))
     : 0
 
   useEffect(() => {
@@ -338,7 +195,7 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
           return current
         }
 
-        if (Date.now() - current.gateOpenedAt < GATE_OPEN_MS) {
+        if (Date.now() - current.gateOpenedAt < FACILITY_GATE_OPEN_MS) {
           return current
         }
 
@@ -420,17 +277,25 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
 
     setClearResults((current) => {
       const next = [{ durationMs: recordedDuration, recordedAt: nowMs }, ...current]
-      return next.slice(0, 5)
+      return next.slice(0, FACILITY_CLEAR_LOG_LIMIT)
     })
   }
 
   const latestClear = clearResults[0]
+  const activatedBeaconCount = Number(runState.beacons.a) + Number(runState.beacons.b) + Number(runState.beacons.c)
+  const mazeProgressText = runState.completedAt
+    ? `クリア: ${latestClear ? formatDuration(latestClear.durationMs) : 'ゴール到達'}`
+    : runState.gateOpen
+      ? `ゲート開放: 残り ${(gateTimeLeftMs / 1000).toFixed(1)}秒`
+      : allBeaconsOn
+        ? 'ゲート起動中...'
+        : `ビーコン: ${activatedBeaconCount} / 3`
 
   return (
     <group position={position} scale={scale}>
-      <color attach="background" args={['#0a1020']} />
-      <fog attach="fog" args={['#070b12', 14, 64]} />
-      <ProceduralSkybox />
+      <color attach="background" args={[FACILITY_COLORS.background]} />
+      <fog attach="fog" args={[FACILITY_COLORS.fog, 14, 64]} />
+      <Skybox />
 
       <ambientLight intensity={0.62} />
       <directionalLight
@@ -448,22 +313,35 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
       <RigidBody type="fixed" colliders="cuboid" restitution={0} friction={1}>
         <mesh position={[0, 0, -2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <planeGeometry args={[60, 60]} />
-          <meshStandardMaterial color="#131b2c" />
+          <meshStandardMaterial color={FACILITY_COLORS.floor} />
         </mesh>
       </RigidBody>
 
       <SpawnPoint position={HUB_SPAWN} yaw={HUB_YAW} />
-      <ModeSelector mode={worldMode} onSelect={selectWorldMode} />
+      <ModeSelectorBoard
+        title="ワールドモード"
+        subtitle="切替しても現在位置は保持"
+        options={[
+          { id: 'maze', label: '迷路', description: 'ビーコン攻略', accentColor: '#2563eb' },
+          { id: 'dorokei', label: 'ドロケイ', description: '警察と泥棒', accentColor: '#dc2626' },
+        ]}
+        activeOptionId={worldMode}
+        onSelectOption={(nextMode) => selectWorldMode(nextMode as WorldMode)}
+        interactionText={(option) => `${option.label}に切り替え`}
+        position={[...FACILITY_BOARDS.mode.position]}
+        rotation={[...FACILITY_BOARDS.mode.rotation]}
+        scale={FACILITY_BOARDS.mode.scale}
+      />
 
-      {OUTER_WALLS.map((wall, index) => (
+      {FACILITY_WALLS.outer.map((wall, index) => (
         <Wall key={`outer-${index}`} {...wall} />
       ))}
-      {showLabyrinthWalls && MAZE_WALLS.map((wall, index) => (
+      {showLabyrinthWalls && FACILITY_WALLS.maze.map((wall, index) => (
         <Wall key={`maze-${index}`} {...wall} />
       ))}
       {isMazeMode && (
         <>
-          {GOAL_ROOM_WALLS.map((wall, index) => (
+          {FACILITY_WALLS.goal.map((wall, index) => (
             <Wall key={`goal-${index}`} {...wall} />
           ))}
 
@@ -491,43 +369,21 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
           <BeaconSwitch beacon="b" activated={runState.beacons.b} onActivate={activateBeacon} />
           <BeaconSwitch beacon="c" activated={runState.beacons.c} onActivate={activateBeacon} />
 
-          <group position={[0, 2.2, 13.2]}>
-            <Text fontSize={0.24} color="#f8fafc" anchorX="center" anchorY="middle">
-              迷路モード
-            </Text>
-            <Text position={[0, -0.38, 0]} fontSize={0.13} color="#d1d5db" anchorX="center" anchorY="middle">
-              A/B/Cのビーコンを起動し、制限時間内にゲートを抜けてください。
-            </Text>
-            <Text
-              position={[0, -0.72, 0]}
-              fontSize={0.15}
-              color={runState.completedAt ? '#34d399' : runState.gateOpen ? '#34d399' : '#fbbf24'}
-              anchorX="center"
-              anchorY="middle"
-            >
-              {runState.completedAt
-                ? `クリア: ${latestClear ? formatDuration(latestClear.durationMs) : 'ゴール到達'}`
-                : runState.gateOpen
-                ? `ゲート開放: 残り ${(gateTimeLeftMs / 1000).toFixed(1)}秒`
-                : allBeaconsOn
-                  ? 'ゲート起動中...'
-                  : `ビーコン: ${Number(runState.beacons.a) + Number(runState.beacons.b) + Number(runState.beacons.c)} / 3`}
-            </Text>
-            {latestClear && (
-              <Text position={[0, -1.02, 0]} fontSize={0.12} color="#93c5fd" anchorX="center" anchorY="middle">
-                直近クリア: {formatDuration(latestClear.durationMs)}
-              </Text>
-            )}
-          </group>
-
-          <group position={[0, 2.2, 10.1]}>
-            <Text fontSize={0.2} color="#f8fafc" anchorX="center" anchorY="middle">
-              ここから開始。左 / 中央 / 右に分担。
-            </Text>
-            <Text position={[0, -0.32, 0]} fontSize={0.13} color="#cbd5e1" anchorX="center" anchorY="middle">
-              セクターを声に出し、3つ点灯後にゲートへ集合。
-            </Text>
-          </group>
+          <BriefingBoard
+            title="迷路モード"
+            subtitle="A/B/Cのビーコンを起動し、制限時間内にゲートを抜けてください。"
+            entries={[
+              { heading: '進行', body: mazeProgressText, tone: runState.gateOpen || runState.completedAt ? 'success' : 'warning' },
+              { heading: '分担', body: 'ここから開始。左 / 中央 / 右に分担。', tone: 'accent' },
+              { heading: '集合', body: 'セクターを声に出し、3つ点灯後にゲートへ集合。' },
+            ]}
+            footer={latestClear ? `直近クリア: ${formatDuration(latestClear.durationMs)}` : '声かけと目印色で迷わない設計。'}
+            accentColor="#10203a"
+            position={[...FACILITY_BOARDS.briefing.position]}
+            rotation={[...FACILITY_BOARDS.briefing.rotation]}
+            scale={FACILITY_BOARDS.briefing.scale}
+            width={5.8}
+          />
 
           <TagBoard
             instanceStateKey="echo-maze-team-tags"

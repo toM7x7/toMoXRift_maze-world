@@ -1,7 +1,8 @@
 import { Text } from '@react-three/drei'
 import { RigidBody } from '@react-three/rapier'
 import { Interactable } from '@xrift/world-components'
-import { DoubleSide } from 'three'
+import { FACILITY_BOARDS } from '../facility/facility'
+import { OverheadScoreboard } from '../facility/OverheadScoreboard'
 import { DorokeiRadarHud } from './DorokeiRadarHud'
 import {
   DOROKEI_CAPTURE_RADIUS,
@@ -14,7 +15,7 @@ import {
 } from './types'
 import { useDorokeiGame } from './useDorokeiGame'
 
-const ADMIN_AREA_ORIGIN: [number, number, number] = [0, -6, 38]
+const ADMIN_AREA_ORIGIN = [...FACILITY_BOARDS.debug.position] as [number, number, number]
 
 const JAIL_WALLS: Array<{
   position: [number, number, number]
@@ -150,38 +151,6 @@ function ParticipantRows({ participants }: { participants: DorokeiParticipant[] 
   )
 }
 
-function DorokeiScoreboard({
-  chasers,
-  runners,
-  jailedRunners,
-  spectators,
-  isRunning,
-}: {
-  chasers: number
-  runners: number
-  jailedRunners: number
-  spectators: number
-  isRunning: boolean
-}) {
-  return (
-    <group position={[0, 7.2, -2]} rotation={[Math.PI / 2, 0, 0]}>
-      <mesh position={[0, 0, -0.02]}>
-        <planeGeometry args={[15.5, 3.0]} />
-        <meshBasicMaterial color="#07111f" transparent opacity={0.84} side={DoubleSide} />
-      </mesh>
-      <Text position={[0, 0.92, 0.04]} fontSize={0.5} color="#f8fafc" anchorX="center" anchorY="middle">
-        ドロケイ スコア
-      </Text>
-      <Text position={[0, 0.24, 0.04]} fontSize={0.38} color={isRunning ? '#fef08a' : '#cbd5e1'} anchorX="center" anchorY="middle">
-        {isRunning ? '試合中' : '待機中'}
-      </Text>
-      <Text position={[0, -0.52, 0.04]} fontSize={0.52} color="#ffffff" anchorX="center" anchorY="middle">
-        {`警察 ${chasers}  /  泥棒 ${runners}  /  捕獲 ${jailedRunners}  /  観戦 ${spectators}`}
-      </Text>
-    </group>
-  )
-}
-
 function AdminDebugArea({
   onJailSelf,
   onFreeSelf,
@@ -248,12 +217,22 @@ export function DorokeiControlLayer() {
         scale={0.42}
       />
 
-      <DorokeiScoreboard
-        chasers={game.counts.chasers}
-        runners={game.counts.runners}
-        jailedRunners={game.counts.jailedRunners}
-        spectators={spectators}
-        isRunning={isRunning}
+      <OverheadScoreboard
+        title="ドロケイ スコア"
+        subtitle="頭上を見上げると全員が確認できます"
+        metrics={[
+          { id: 'chasers', label: '警察', value: game.counts.chasers, accentColor: '#f87171' },
+          { id: 'runners', label: '泥棒', value: game.counts.runners, accentColor: '#4ade80' },
+          { id: 'jailed', label: '牢屋', value: game.counts.jailedRunners, accentColor: '#f59e0b' },
+          { id: 'spectators', label: '観戦', value: spectators, accentColor: '#60a5fa' },
+        ]}
+        status={isRunning ? '試合中' : '待機中'}
+        footer="ゲーム中は警察・泥棒・牢屋人数を優先表示"
+        position={[...FACILITY_BOARDS.scoreboard.position]}
+        rotation={[Math.PI / 2, 0, 0]}
+        scale={FACILITY_BOARDS.scoreboard.scale}
+        width={15.5}
+        height={3}
       />
 
       <group position={[-21.42, 2.7, 7.7]} rotation={[0, Math.PI / 2, 0]} scale={0.54}>
