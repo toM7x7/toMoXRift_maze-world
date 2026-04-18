@@ -1,8 +1,8 @@
 {
   "world": {
     "distDir": "./dist",
-    "title": "Maze World",
-    "description": "Maze World prototype for XRift",
+    "title": "Echo Maze",
+    "description": "Cooperative maze with beacon escape and Dorokei tag mode, including jail rescue and a periodic 3D radar HUD",
     "thumbnailPath": "thumbnail.png",
     "buildCommand": "npm run build",
     "ignore": [

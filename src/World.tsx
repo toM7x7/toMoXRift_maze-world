@@ -9,6 +9,7 @@ import {
   useInstanceState,
   useTeleport,
 } from '@xrift/world-components'
+import { DorokeiControlLayer } from './dorokei/DorokeiControlLayer'
 
 type BeaconKey = 'a' | 'b' | 'c'
 
@@ -16,6 +17,8 @@ interface MazeRunState {
   beacons: Record<BeaconKey, boolean>
   gateOpen: boolean
   gateOpenedAt: number | null
+  runStartedAt: number | null
+  completedAt: number | null
 }
 
 interface ClearResult {
@@ -38,17 +41,20 @@ const INITIAL_RUN_STATE: MazeRunState = {
   beacons: { a: false, b: false, c: false },
   gateOpen: false,
   gateOpenedAt: null,
+  runStartedAt: null,
+  completedAt: null,
 }
 
 const GATE_OPEN_MS = 20_000
-const HUB_SPAWN: [number, number, number] = [0, 0, 16]
+const HUB_SPAWN: [number, number, number] = [0, 0, 17.5]
 
 const OUTER_WALLS: WallSpec[] = [
   { position: [0, 1.5, 20], size: [44, 3, 1] },
   { position: [0, 1.5, -24], size: [44, 3, 1] },
   { position: [-22, 1.5, -2], size: [1, 3, 44] },
   { position: [22, 1.5, -2], size: [1, 3, 44] },
-  { position: [0, 1.5, 12], size: [16, 3, 1] },
+  { position: [-6, 1.5, 12], size: [4, 3, 1] },
+  { position: [6, 1.5, 12], size: [4, 3, 1] },
   { position: [-12, 1.5, 16], size: [1, 3, 8] },
   { position: [12, 1.5, 16], size: [1, 3, 8] },
 ]
@@ -144,6 +150,28 @@ function formatDuration(ms: number): string {
   return `${seconds}s`
 }
 
+function HubGuide({
+  position,
+  color,
+  label,
+}: {
+  position: [number, number, number]
+  color: string
+  label: string
+}) {
+  return (
+    <group position={position}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[2.6, 4.2]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.45} transparent opacity={0.22} />
+      </mesh>
+      <Text position={[0, 0.08, 0]} fontSize={0.28} color="#f8fafc" anchorX="center" anchorY="middle">
+        {label}
+      </Text>
+    </group>
+  )
+}
+
 export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
   const { teleport } = useTeleport()
   const [runState, setRunState] = useInstanceState<MazeRunState>(
@@ -155,12 +183,25 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
     [],
   )
   const [now, setNow] = useState(() => Date.now())
-  const goalDebounceRef = useRef(0)
+  const didTeleportOnMountRef = useRef(false)
 
   const allBeaconsOn = runState.beacons.a && runState.beacons.b && runState.beacons.c
   const gateTimeLeftMs = runState.gateOpen && runState.gateOpenedAt
     ? Math.max(0, GATE_OPEN_MS - (now - runState.gateOpenedAt))
     : 0
+
+  useEffect(() => {
+    if (didTeleportOnMountRef.current) {
+      return
+    }
+
+    didTeleportOnMountRef.current = true
+    const timeoutId = window.setTimeout(() => {
+      teleport({ position: HUB_SPAWN, yaw: 180 })
+    }, 120)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [teleport])
 
   useEffect(() => {
     if (!runState.gateOpen) {
@@ -204,20 +245,27 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
 
       const beacons = { ...current.beacons, [beacon]: true }
       const shouldOpenGate = beacons.a && beacons.b && beacons.c
+      const runStartedAt = current.runStartedAt ?? Date.now()
 
       if (!shouldOpenGate) {
-        return { ...current, beacons }
+        return { ...current, beacons, runStartedAt }
       }
 
       return {
+        ...current,
         beacons,
         gateOpen: true,
         gateOpenedAt: Date.now(),
+        runStartedAt,
       }
     })
   }
 
   const resetRun = () => {
+    if (runState.completedAt === null) {
+      return
+    }
+
     setRunState(INITIAL_RUN_STATE)
     teleport({ position: HUB_SPAWN, yaw: 180 })
   }
@@ -228,14 +276,30 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
     }
 
     const nowMs = Date.now()
-    if (nowMs - goalDebounceRef.current < 1200) {
+    let durationMs: number | null = null
+
+    setRunState((current) => {
+      if (!current.gateOpen || current.gateOpenedAt === null || current.completedAt !== null) {
+        return current
+      }
+
+      const startedAt = current.runStartedAt ?? current.gateOpenedAt
+      durationMs = Math.max(0, nowMs - startedAt)
+
+      return {
+        ...current,
+        completedAt: nowMs,
+      }
+    })
+
+    if (durationMs === null) {
       return
     }
-    goalDebounceRef.current = nowMs
 
-    const durationMs = Math.max(0, nowMs - runState.gateOpenedAt)
+    const recordedDuration = durationMs
+
     setClearResults((current) => {
-      const next = [{ durationMs, recordedAt: nowMs }, ...current]
+      const next = [{ durationMs: recordedDuration, recordedAt: nowMs }, ...current]
       return next.slice(0, 5)
     })
   }
@@ -244,16 +308,21 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
 
   return (
     <group position={position} scale={scale}>
+      <color attach="background" args={['#0a1020']} />
       <fog attach="fog" args={['#070b12', 14, 64]} />
 
-      <ambientLight intensity={0.45} />
+      <ambientLight intensity={0.62} />
       <directionalLight
         position={[12, 22, 6]}
-        intensity={1.2}
+        intensity={1.45}
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
       />
+      <pointLight position={[0, 5.5, 15.5]} intensity={36} distance={28} color="#f8fafc" />
+      <pointLight position={[-8.5, 3.5, 13.5]} intensity={14} distance={12} color="#ef4444" />
+      <pointLight position={[0, 3.5, 12.6]} intensity={14} distance={12} color="#60a5fa" />
+      <pointLight position={[8.5, 3.5, 13.5]} intensity={14} distance={12} color="#22c55e" />
 
       <RigidBody type="fixed" colliders="cuboid" restitution={0} friction={1}>
         <mesh position={[0, 0, -2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
@@ -262,9 +331,7 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
         </mesh>
       </RigidBody>
 
-      <group position={HUB_SPAWN}>
-        <SpawnPoint />
-      </group>
+      <SpawnPoint position={HUB_SPAWN} yaw={180} />
 
       {OUTER_WALLS.map((wall, index) => (
         <Wall key={`outer-${index}`} {...wall} />
@@ -275,6 +342,10 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
       {GOAL_ROOM_WALLS.map((wall, index) => (
         <Wall key={`goal-${index}`} {...wall} />
       ))}
+
+      <HubGuide position={[-8.6, 0.03, 14.6]} color="#7f1d1d" label="A LEFT" />
+      <HubGuide position={[0, 0.03, 12.9]} color="#1d4ed8" label="B MID" />
+      <HubGuide position={[8.6, 0.03, 14.6]} color="#166534" label="C RIGHT" />
 
       {!runState.gateOpen && (
         <RigidBody type="fixed" colliders="cuboid" restitution={0} friction={1}>
@@ -296,25 +367,42 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
       <BeaconSwitch beacon="b" activated={runState.beacons.b} onActivate={activateBeacon} />
       <BeaconSwitch beacon="c" activated={runState.beacons.c} onActivate={activateBeacon} />
 
-      <group position={[0, 2.4, 15.4]}>
-        <Text fontSize={0.58} color="#f8fafc" anchorX="center" anchorY="middle">
+      <group position={[0, 2.2, 13.2]}>
+        <Text fontSize={0.24} color="#f8fafc" anchorX="center" anchorY="middle">
           Echo Maze
         </Text>
-        <Text position={[0, -0.8, 0]} fontSize={0.26} color="#d1d5db" anchorX="center" anchorY="middle">
-          Activate A/B/C, then sprint through the gate.
+        <Text position={[0, -0.38, 0]} fontSize={0.13} color="#d1d5db" anchorX="center" anchorY="middle">
+          Activate A/B/C, then sprint through the timed gate.
         </Text>
-        <Text position={[0, -1.45, 0]} fontSize={0.3} color={runState.gateOpen ? '#34d399' : '#fbbf24'} anchorX="center" anchorY="middle">
-          {runState.gateOpen
+        <Text
+          position={[0, -0.72, 0]}
+          fontSize={0.15}
+          color={runState.completedAt ? '#34d399' : runState.gateOpen ? '#34d399' : '#fbbf24'}
+          anchorX="center"
+          anchorY="middle"
+        >
+          {runState.completedAt
+            ? `Run clear: ${latestClear ? formatDuration(latestClear.durationMs) : 'Goal reached'}`
+            : runState.gateOpen
             ? `Gate open: ${(gateTimeLeftMs / 1000).toFixed(1)}s left`
             : allBeaconsOn
               ? 'Gate opening...'
               : `Beacons: ${Number(runState.beacons.a) + Number(runState.beacons.b) + Number(runState.beacons.c)} / 3`}
         </Text>
         {latestClear && (
-          <Text position={[0, -2.05, 0]} fontSize={0.24} color="#93c5fd" anchorX="center" anchorY="middle">
+          <Text position={[0, -1.02, 0]} fontSize={0.12} color="#93c5fd" anchorX="center" anchorY="middle">
             Latest clear: {formatDuration(latestClear.durationMs)}
           </Text>
         )}
+      </group>
+
+      <group position={[0, 2.2, 10.1]}>
+        <Text fontSize={0.2} color="#f8fafc" anchorX="center" anchorY="middle">
+          Start here. Split left / mid / right.
+        </Text>
+        <Text position={[0, -0.32, 0]} fontSize={0.13} color="#cbd5e1" anchorX="center" anchorY="middle">
+          Call sectors, light all three beacons, then collapse on the gate.
+        </Text>
       </group>
 
       <TagBoard
@@ -333,11 +421,14 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
         scale={0.9}
       />
 
+      <DorokeiControlLayer />
+
       <group position={[0, 0.65, -20.6]}>
         <Interactable
           id="echo-maze-retry"
-          interactionText="Reset run and teleport to hub"
+          interactionText={runState.completedAt ? 'Start next run from hub' : 'Finish the run to unlock restart'}
           onInteract={resetRun}
+          enabled={runState.completedAt !== null}
         >
           <RigidBody type="fixed" colliders="cuboid">
             <mesh castShadow>

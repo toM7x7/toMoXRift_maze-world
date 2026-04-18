@@ -23,10 +23,16 @@ const cameraConfig: CameraConfig | undefined = (
   xriftConfig as { camera?: CameraConfig }
 ).camera
 
+const devSpawnPosition: [number, number, number] = [0, 1.6, 18]
+
 createRoot(rootElement).render(
   <StrictMode>
     <XRiftProvider baseUrl="/">
-      <DevEnvironment physicsConfig={physicsConfig} camera={cameraConfig}>
+      <DevEnvironment
+        physicsConfig={physicsConfig}
+        camera={cameraConfig}
+        spawnPosition={devSpawnPosition}
+      >
         <World />
       </DevEnvironment>
     </XRiftProvider>
