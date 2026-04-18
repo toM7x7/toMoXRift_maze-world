@@ -106,7 +106,7 @@ const readRole = (value: DorokeiRole | string | undefined): DorokeiRole | 'unkno
 
 const formatCountdown = (remainingMs: number) => {
   const seconds = Math.max(0, Math.ceil(remainingMs / 1000))
-  return `${seconds.toString().padStart(2, '0')}s`
+  return `${seconds.toString().padStart(2, '0')}秒`
 }
 
 const getPulseState = (roundStartedAt: number | null, nowMs: number) => {
@@ -312,27 +312,27 @@ export const DorokeiRadarHud = ({
   const localSafe = localRole === 'runner' && nearbyEnemies.length === 0
 
   const roundLabel = !isRunning
-    ? 'LOBBY'
+    ? '待機'
     : localRole === 'chaser'
-      ? 'CHASE'
+      ? '警察'
       : localRole === 'runner'
-        ? 'RUN'
-        : 'DOROKEI'
+        ? '泥棒'
+        : 'ドロケイ'
 
   const countdownLabel = roundStartedAt == null ? '--' : formatCountdown(pulseState.remainingMs)
-  const visibilityLabel = visibleRadar ? `Radar live ${countdownLabel}` : `Radar in ${countdownLabel}`
-  const roleLabel = localRole == null ? 'ROLE: UNSET' : `ROLE: ${localRole.toUpperCase()}`
+  const visibilityLabel = visibleRadar ? `レーダー中 ${countdownLabel}` : `次のレーダー ${countdownLabel}`
+  const roleLabel = localRole == null ? '役割: 未設定' : `役割: ${localRole === 'chaser' ? '警察' : '泥棒'}`
   const statusLabel = !isRunning
-    ? 'Waiting for round'
+    ? '開始待ち'
     : localJailed
-      ? 'JAILED'
+      ? '牢屋'
       : localSafe
-        ? 'SAFE'
+        ? '安全'
         : localRole === 'chaser'
-          ? `HUNTING ${nearbyEnemies.length}`
+          ? `追跡 ${nearbyEnemies.length}`
           : nearbyEnemies.length > 0
-            ? `THREAT ${nearbyEnemies.length}`
-            : 'NO THREAT'
+            ? `危険 ${nearbyEnemies.length}`
+            : '反応なし'
 
   if (!isActive) {
     return null
@@ -481,7 +481,7 @@ export const DorokeiRadarHud = ({
           anchorY="middle"
           maxWidth={1.15}
         >
-          Forward is up. Use the ring to read enemy bearings.
+          上が前方。点の方向に相手がいます。
         </Text>
 
         {localJailed ? (
@@ -491,9 +491,9 @@ export const DorokeiRadarHud = ({
             color="#ff8f8f"
             anchorX="center"
             anchorY="middle"
-            fontWeight="bold"
-          >
-            JAIL STATE ACTIVE
+          fontWeight="bold"
+        >
+            牢屋状態
           </Text>
         ) : null}
 
@@ -504,8 +504,8 @@ export const DorokeiRadarHud = ({
             color="#cbd7ea"
             anchorX="center"
             anchorY="middle"
-          >
-            Awaiting match start.
+        >
+            試合開始待ち
           </Text>
         ) : null}
       </group>

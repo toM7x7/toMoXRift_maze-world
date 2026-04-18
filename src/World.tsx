@@ -1,6 +1,7 @@
 import { RigidBody } from '@react-three/rapier'
 import { Text } from '@react-three/drei'
 import { useEffect, useRef, useState } from 'react'
+import { BackSide } from 'three'
 import {
   EntryLogBoard,
   Interactable,
@@ -12,6 +13,7 @@ import {
 import { DorokeiControlLayer } from './dorokei/DorokeiControlLayer'
 
 type BeaconKey = 'a' | 'b' | 'c'
+type WorldMode = 'maze' | 'dorokei'
 
 interface MazeRunState {
   beacons: Record<BeaconKey, boolean>
@@ -81,17 +83,29 @@ const GOAL_ROOM_WALLS: WallSpec[] = [
 ]
 
 const BEACON_CONFIG: Record<BeaconKey, { label: string; color: string; position: [number, number, number] }> = {
-  a: { label: 'Beacon A', color: '#e74c3c', position: [-15, 0.6, 8] },
-  b: { label: 'Beacon B', color: '#3498db', position: [1, 0.6, -5] },
-  c: { label: 'Beacon C', color: '#2ecc71', position: [15, 0.6, -12] },
+  a: { label: 'ビーコンA', color: '#e74c3c', position: [-15, 0.6, 8] },
+  b: { label: 'ビーコンB', color: '#3498db', position: [1, 0.6, -5] },
+  c: { label: 'ビーコンC', color: '#2ecc71', position: [15, 0.6, -12] },
 }
 
 const TAGS = [
-  { id: 'scout', label: 'Scout', color: '#ef4444' },
-  { id: 'caller', label: 'Caller', color: '#3b82f6' },
-  { id: 'runner', label: 'Runner', color: '#22c55e' },
-  { id: 'replay', label: 'Replay', color: '#f59e0b' },
+  { id: 'scout', label: '先導', color: '#ef4444' },
+  { id: 'caller', label: '合図', color: '#3b82f6' },
+  { id: 'runner', label: '走者', color: '#22c55e' },
+  { id: 'replay', label: '再挑戦', color: '#f59e0b' },
 ]
+
+const SKY_STARS: Array<[number, number, number, number]> = Array.from({ length: 56 }, (_, index) => {
+  const angle = index * 2.399963229728653
+  const height = 42 + (index % 9) * 7.5
+  const radius = 84 + (index % 5) * 10
+  return [
+    Math.cos(angle) * radius,
+    height,
+    Math.sin(angle) * radius,
+    0.08 + (index % 4) * 0.025,
+  ]
+})
 
 function Wall({ position, size, color = '#353c4e' }: WallSpec) {
   return (
@@ -101,6 +115,93 @@ function Wall({ position, size, color = '#353c4e' }: WallSpec) {
         <meshStandardMaterial color={color} />
       </mesh>
     </RigidBody>
+  )
+}
+
+function ProceduralSkybox() {
+  return (
+    <group>
+      <mesh>
+        <sphereGeometry args={[170, 48, 24]} />
+        <meshBasicMaterial color="#071328" side={BackSide} />
+      </mesh>
+      <mesh position={[0, 22, -82]} rotation={[0, 0, 0]}>
+        <torusGeometry args={[44, 0.18, 8, 96]} />
+        <meshBasicMaterial color="#1d4ed8" transparent opacity={0.22} />
+      </mesh>
+      <mesh position={[-42, 58, -74]}>
+        <sphereGeometry args={[4.8, 24, 12]} />
+        <meshBasicMaterial color="#fef3c7" transparent opacity={0.92} />
+      </mesh>
+      {SKY_STARS.map(([x, y, z, radius], index) => (
+        <mesh key={`sky-star-${index}`} position={[x, y, z]}>
+          <sphereGeometry args={[radius, 8, 8]} />
+          <meshBasicMaterial color={index % 5 === 0 ? '#bfdbfe' : '#f8fafc'} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+function ModeButton({
+  mode,
+  active,
+  label,
+  color,
+  onSelect,
+}: {
+  mode: WorldMode
+  active: boolean
+  label: string
+  color: string
+  onSelect: (mode: WorldMode) => void
+}) {
+  return (
+    <Interactable
+      id={`echo-maze-mode-${mode}`}
+      interactionText={`${label}に切り替え`}
+      onInteract={() => onSelect(mode)}
+    >
+      <RigidBody type="fixed" colliders="cuboid">
+        <mesh castShadow>
+          <boxGeometry args={[1.85, 0.5, 0.22]} />
+          <meshStandardMaterial
+            color={active ? '#f8fafc' : color}
+            emissive={color}
+            emissiveIntensity={active ? 0.8 : 0.34}
+          />
+        </mesh>
+      </RigidBody>
+      <Text position={[0, 0, 0.15]} fontSize={0.14} color={active ? '#0f172a' : '#ffffff'} anchorX="center" anchorY="middle">
+        {active ? `${label}中` : label}
+      </Text>
+    </Interactable>
+  )
+}
+
+function ModeSelector({
+  mode,
+  onSelect,
+}: {
+  mode: WorldMode
+  onSelect: (mode: WorldMode) => void
+}) {
+  return (
+    <group position={[0, 1.05, 16.18]} scale={0.38}>
+      <mesh position={[0, 0, -0.07]}>
+        <boxGeometry args={[5.1, 1.12, 0.12]} />
+        <meshStandardMaterial color="#0f172a" emissive="#111827" emissiveIntensity={0.42} transparent opacity={0.88} />
+      </mesh>
+      <Text position={[0, 0.34, 0.04]} fontSize={0.14} color="#f8fafc" anchorX="center" anchorY="middle">
+        ワールドモード
+      </Text>
+      <group position={[-1.08, -0.18, 0.05]}>
+        <ModeButton mode="maze" active={mode === 'maze'} label="迷路" color="#2563eb" onSelect={onSelect} />
+      </group>
+      <group position={[1.08, -0.18, 0.05]}>
+        <ModeButton mode="dorokei" active={mode === 'dorokei'} label="ドロケイ" color="#dc2626" onSelect={onSelect} />
+      </group>
+    </group>
   )
 }
 
@@ -117,7 +218,7 @@ function BeaconSwitch({ beacon, activated, onActivate }: BeaconSwitchProps) {
     <group position={config.position}>
       <Interactable
         id={`echo-maze-${beacon}`}
-        interactionText={activated ? `${config.label} is already active` : `Activate ${config.label}`}
+        interactionText={activated ? `${config.label}は起動済み` : `${config.label}を起動`}
         onInteract={() => onActivate(beacon)}
         enabled={!activated}
       >
@@ -139,7 +240,7 @@ function BeaconSwitch({ beacon, activated, onActivate }: BeaconSwitchProps) {
         anchorX="center"
         anchorY="middle"
       >
-        {activated ? `${config.label} ON` : config.label}
+        {activated ? `${config.label} 起動` : config.label}
       </Text>
     </group>
   )
@@ -182,9 +283,15 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
     'echo-maze-clear-results',
     [],
   )
+  const [worldMode, setWorldMode] = useInstanceState<WorldMode>(
+    'echo-maze-world-mode',
+    'maze',
+  )
   const [now, setNow] = useState(() => Date.now())
   const didTeleportOnMountRef = useRef(false)
 
+  const isMazeMode = worldMode === 'maze'
+  const isDorokeiMode = worldMode === 'dorokei'
   const allBeaconsOn = runState.beacons.a && runState.beacons.b && runState.beacons.c
   const gateTimeLeftMs = runState.gateOpen && runState.gateOpenedAt
     ? Math.max(0, GATE_OPEN_MS - (now - runState.gateOpenedAt))
@@ -270,6 +377,15 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
     teleport({ position: HUB_SPAWN, yaw: 180 })
   }
 
+  const selectWorldMode = (nextMode: WorldMode) => {
+    setWorldMode(nextMode)
+    teleport({ position: HUB_SPAWN, yaw: 180 })
+
+    if (nextMode === 'maze') {
+      setRunState(INITIAL_RUN_STATE)
+    }
+  }
+
   const registerClear = () => {
     if (!runState.gateOpen || runState.gateOpenedAt === null) {
       return
@@ -310,6 +426,7 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
     <group position={position} scale={scale}>
       <color attach="background" args={['#0a1020']} />
       <fog attach="fog" args={['#070b12', 14, 64]} />
+      <ProceduralSkybox />
 
       <ambientLight intensity={0.62} />
       <directionalLight
@@ -332,119 +449,124 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
       </RigidBody>
 
       <SpawnPoint position={HUB_SPAWN} yaw={180} />
+      <ModeSelector mode={worldMode} onSelect={selectWorldMode} />
 
       {OUTER_WALLS.map((wall, index) => (
         <Wall key={`outer-${index}`} {...wall} />
       ))}
-      {MAZE_WALLS.map((wall, index) => (
-        <Wall key={`maze-${index}`} {...wall} />
-      ))}
-      {GOAL_ROOM_WALLS.map((wall, index) => (
-        <Wall key={`goal-${index}`} {...wall} />
-      ))}
+      {isMazeMode && (
+        <>
+          {MAZE_WALLS.map((wall, index) => (
+            <Wall key={`maze-${index}`} {...wall} />
+          ))}
+          {GOAL_ROOM_WALLS.map((wall, index) => (
+            <Wall key={`goal-${index}`} {...wall} />
+          ))}
 
-      <HubGuide position={[-8.6, 0.03, 14.6]} color="#7f1d1d" label="A LEFT" />
-      <HubGuide position={[0, 0.03, 12.9]} color="#1d4ed8" label="B MID" />
-      <HubGuide position={[8.6, 0.03, 14.6]} color="#166534" label="C RIGHT" />
+          <HubGuide position={[-8.6, 0.03, 14.6]} color="#7f1d1d" label="A 左" />
+          <HubGuide position={[0, 0.03, 12.9]} color="#1d4ed8" label="B 中央" />
+          <HubGuide position={[8.6, 0.03, 14.6]} color="#166534" label="C 右" />
 
-      {!runState.gateOpen && (
-        <RigidBody type="fixed" colliders="cuboid" restitution={0} friction={1}>
-          <mesh position={[0, 1.5, -16]} castShadow>
-            <boxGeometry args={[6, 3, 0.8]} />
-            <meshStandardMaterial color="#9a3412" emissive="#4a1d0f" emissiveIntensity={0.5} />
-          </mesh>
-        </RigidBody>
-      )}
+          {!runState.gateOpen && (
+            <RigidBody type="fixed" colliders="cuboid" restitution={0} friction={1}>
+              <mesh position={[0, 1.5, -16]} castShadow>
+                <boxGeometry args={[6, 3, 0.8]} />
+                <meshStandardMaterial color="#9a3412" emissive="#4a1d0f" emissiveIntensity={0.5} />
+              </mesh>
+            </RigidBody>
+          )}
 
-      <RigidBody type="fixed" sensor onIntersectionEnter={registerClear}>
-        <mesh position={[0, 1, -20]}>
-          <boxGeometry args={[7, 2, 5]} />
-          <meshBasicMaterial visible={false} />
-        </mesh>
-      </RigidBody>
-
-      <BeaconSwitch beacon="a" activated={runState.beacons.a} onActivate={activateBeacon} />
-      <BeaconSwitch beacon="b" activated={runState.beacons.b} onActivate={activateBeacon} />
-      <BeaconSwitch beacon="c" activated={runState.beacons.c} onActivate={activateBeacon} />
-
-      <group position={[0, 2.2, 13.2]}>
-        <Text fontSize={0.24} color="#f8fafc" anchorX="center" anchorY="middle">
-          Echo Maze
-        </Text>
-        <Text position={[0, -0.38, 0]} fontSize={0.13} color="#d1d5db" anchorX="center" anchorY="middle">
-          Activate A/B/C, then sprint through the timed gate.
-        </Text>
-        <Text
-          position={[0, -0.72, 0]}
-          fontSize={0.15}
-          color={runState.completedAt ? '#34d399' : runState.gateOpen ? '#34d399' : '#fbbf24'}
-          anchorX="center"
-          anchorY="middle"
-        >
-          {runState.completedAt
-            ? `Run clear: ${latestClear ? formatDuration(latestClear.durationMs) : 'Goal reached'}`
-            : runState.gateOpen
-            ? `Gate open: ${(gateTimeLeftMs / 1000).toFixed(1)}s left`
-            : allBeaconsOn
-              ? 'Gate opening...'
-              : `Beacons: ${Number(runState.beacons.a) + Number(runState.beacons.b) + Number(runState.beacons.c)} / 3`}
-        </Text>
-        {latestClear && (
-          <Text position={[0, -1.02, 0]} fontSize={0.12} color="#93c5fd" anchorX="center" anchorY="middle">
-            Latest clear: {formatDuration(latestClear.durationMs)}
-          </Text>
-        )}
-      </group>
-
-      <group position={[0, 2.2, 10.1]}>
-        <Text fontSize={0.2} color="#f8fafc" anchorX="center" anchorY="middle">
-          Start here. Split left / mid / right.
-        </Text>
-        <Text position={[0, -0.32, 0]} fontSize={0.13} color="#cbd5e1" anchorX="center" anchorY="middle">
-          Call sectors, light all three beacons, then collapse on the gate.
-        </Text>
-      </group>
-
-      <TagBoard
-        instanceStateKey="echo-maze-team-tags"
-        title="Team Roles"
-        tags={TAGS}
-        position={[-7.2, 1.6, 15.6]}
-        rotation={[0, Math.PI / 2, 0]}
-        scale={0.9}
-      />
-
-      <EntryLogBoard
-        stateNamespace="echo-maze-entry-log"
-        position={[7.2, 2.05, 15.6]}
-        rotation={[0, -Math.PI / 2, 0]}
-        scale={0.9}
-      />
-
-      <DorokeiControlLayer />
-
-      <group position={[0, 0.65, -20.6]}>
-        <Interactable
-          id="echo-maze-retry"
-          interactionText={runState.completedAt ? 'Start next run from hub' : 'Finish the run to unlock restart'}
-          onInteract={resetRun}
-          enabled={runState.completedAt !== null}
-        >
-          <RigidBody type="fixed" colliders="cuboid">
-            <mesh castShadow>
-              <boxGeometry args={[2.4, 1.2, 1]} />
-              <meshStandardMaterial color="#6366f1" emissive="#312e81" emissiveIntensity={0.45} />
+          <RigidBody type="fixed" sensor onIntersectionEnter={registerClear}>
+            <mesh position={[0, 1, -20]}>
+              <boxGeometry args={[7, 2, 5]} />
+              <meshBasicMaterial visible={false} />
             </mesh>
           </RigidBody>
-        </Interactable>
-        <Text position={[0, 0, 0.52]} fontSize={0.22} color="#ffffff" anchorX="center" anchorY="middle">
-          Retry Portal
-        </Text>
-      </group>
 
-      <Text position={[0, 2.6, -20]} fontSize={0.52} color="#fef08a" anchorX="center" anchorY="middle">
-        Goal Room
-      </Text>
+          <BeaconSwitch beacon="a" activated={runState.beacons.a} onActivate={activateBeacon} />
+          <BeaconSwitch beacon="b" activated={runState.beacons.b} onActivate={activateBeacon} />
+          <BeaconSwitch beacon="c" activated={runState.beacons.c} onActivate={activateBeacon} />
+
+          <group position={[0, 2.2, 13.2]}>
+            <Text fontSize={0.24} color="#f8fafc" anchorX="center" anchorY="middle">
+              迷路モード
+            </Text>
+            <Text position={[0, -0.38, 0]} fontSize={0.13} color="#d1d5db" anchorX="center" anchorY="middle">
+              A/B/Cのビーコンを起動し、制限時間内にゲートを抜けてください。
+            </Text>
+            <Text
+              position={[0, -0.72, 0]}
+              fontSize={0.15}
+              color={runState.completedAt ? '#34d399' : runState.gateOpen ? '#34d399' : '#fbbf24'}
+              anchorX="center"
+              anchorY="middle"
+            >
+              {runState.completedAt
+                ? `クリア: ${latestClear ? formatDuration(latestClear.durationMs) : 'ゴール到達'}`
+                : runState.gateOpen
+                ? `ゲート開放: 残り ${(gateTimeLeftMs / 1000).toFixed(1)}秒`
+                : allBeaconsOn
+                  ? 'ゲート起動中...'
+                  : `ビーコン: ${Number(runState.beacons.a) + Number(runState.beacons.b) + Number(runState.beacons.c)} / 3`}
+            </Text>
+            {latestClear && (
+              <Text position={[0, -1.02, 0]} fontSize={0.12} color="#93c5fd" anchorX="center" anchorY="middle">
+                直近クリア: {formatDuration(latestClear.durationMs)}
+              </Text>
+            )}
+          </group>
+
+          <group position={[0, 2.2, 10.1]}>
+            <Text fontSize={0.2} color="#f8fafc" anchorX="center" anchorY="middle">
+              ここから開始。左 / 中央 / 右に分担。
+            </Text>
+            <Text position={[0, -0.32, 0]} fontSize={0.13} color="#cbd5e1" anchorX="center" anchorY="middle">
+              セクターを声に出し、3つ点灯後にゲートへ集合。
+            </Text>
+          </group>
+
+          <TagBoard
+            instanceStateKey="echo-maze-team-tags"
+            title="迷路の役割"
+            tags={TAGS}
+            position={[-7.2, 1.6, 15.6]}
+            rotation={[0, Math.PI / 2, 0]}
+            scale={0.9}
+          />
+
+          <EntryLogBoard
+            stateNamespace="echo-maze-entry-log"
+            position={[7.2, 2.05, 15.6]}
+            rotation={[0, -Math.PI / 2, 0]}
+            scale={0.9}
+          />
+
+          <group position={[0, 0.65, -20.6]}>
+            <Interactable
+              id="echo-maze-retry"
+              interactionText={runState.completedAt ? '次の迷路ランを開始' : 'クリア後に再挑戦できます'}
+              onInteract={resetRun}
+              enabled={runState.completedAt !== null}
+            >
+              <RigidBody type="fixed" colliders="cuboid">
+                <mesh castShadow>
+                  <boxGeometry args={[2.4, 1.2, 1]} />
+                  <meshStandardMaterial color="#6366f1" emissive="#312e81" emissiveIntensity={0.45} />
+                </mesh>
+              </RigidBody>
+            </Interactable>
+            <Text position={[0, 0, 0.52]} fontSize={0.22} color="#ffffff" anchorX="center" anchorY="middle">
+              再挑戦
+            </Text>
+          </group>
+
+          <Text position={[0, 2.6, -20]} fontSize={0.52} color="#fef08a" anchorX="center" anchorY="middle">
+            ゴール部屋
+          </Text>
+        </>
+      )}
+
+      {isDorokeiMode && <DorokeiControlLayer />}
     </group>
   )
 }

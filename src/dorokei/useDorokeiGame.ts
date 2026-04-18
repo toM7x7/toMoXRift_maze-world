@@ -21,6 +21,7 @@ import {
   type DorokeiCounts,
   type DorokeiGameState,
   type DorokeiJailState,
+  type DorokeiParticipant,
   type DorokeiRole,
 } from './types'
 
@@ -64,6 +65,17 @@ function countGameState(
   }
 }
 
+function clampPoliceCount(value: number, participantCount: number) {
+  return Math.max(1, Math.min(Math.max(1, participantCount), value))
+}
+
+function shuffleUserIds(userIds: string[]) {
+  return userIds
+    .map((userId) => ({ userId, sortKey: Math.random() }))
+    .sort((a, b) => a.sortKey - b.sortKey)
+    .map(({ userId }) => userId)
+}
+
 export function useDorokeiGame() {
   const { localUser, remoteUsers, getLocalMovement, getMovement } = useUsers()
   const { teleport } = useTeleport()
@@ -81,10 +93,21 @@ export function useDorokeiGame() {
   const localRole = state.rolesByUserId[localUserId] ?? null
   const localJail = readJail(state, localUserId)
   const localJailed = Boolean(localJail?.jailed)
+  const participants = useMemo<DorokeiParticipant[]>(() => {
+    const users = [effectiveLocalUser, ...remoteUsers]
+    return users.map((user) => ({
+      userId: user.id,
+      displayName: user.displayName || (user.id === localUserId ? 'あなた' : '参加者'),
+      role: state.rolesByUserId[user.id] ?? null,
+      jailed: isJailed(state, user.id),
+      isLocal: user.id === localUserId,
+    }))
+  }, [effectiveLocalUser, localUserId, remoteUsers, state])
   const counts = useMemo(
-    () => countGameState(state, remoteUsers.length + 1),
-    [remoteUsers.length, state],
+    () => countGameState(state, participants.length),
+    [participants.length, state],
   )
+  const canStartRound = counts.chasers > 0 && counts.runners > 0
 
   const selectRole = useCallback(
     (role: DorokeiRole) => {
@@ -98,6 +121,45 @@ export function useDorokeiGame() {
     },
     [localUserId, setState],
   )
+
+  const adjustPoliceTargetCount = useCallback(
+    (delta: number) => {
+      setState((current) => ({
+        ...current,
+        policeTargetCount: clampPoliceCount(
+          (current.policeTargetCount ?? 1) + delta,
+          participants.length,
+        ),
+      }))
+    },
+    [participants.length, setState],
+  )
+
+  const randomizeTeams = useCallback(() => {
+    setState((current) => {
+      const userIds = participants.map((participant) => participant.userId)
+      if (userIds.length === 0) {
+        return current
+      }
+
+      const policeCount = clampPoliceCount(
+        current.policeTargetCount ?? 1,
+        userIds.length,
+      )
+      const policeIds = new Set(shuffleUserIds(userIds).slice(0, policeCount))
+      const rolesByUserId: Record<string, DorokeiRole> = {}
+
+      for (const userId of userIds) {
+        rolesByUserId[userId] = policeIds.has(userId) ? 'chaser' : 'runner'
+      }
+
+      return {
+        ...current,
+        policeTargetCount: policeCount,
+        rolesByUserId,
+      }
+    })
+  }, [participants, setState])
 
   const startRound = useCallback(() => {
     setState((current) => ({
@@ -413,8 +475,12 @@ export function useDorokeiGame() {
     localRole,
     localJail,
     localJailed,
+    participants,
     counts,
+    canStartRound,
     selectRole,
+    adjustPoliceTargetCount,
+    randomizeTeams,
     startRound,
     resetRound,
     captureRunner,

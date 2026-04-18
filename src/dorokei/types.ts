@@ -38,6 +38,7 @@ export interface DorokeiGameState {
   roundStartedAt: number | null
   roundEndedAt: number | null
   lastResetAt: number | null
+  policeTargetCount: number
   rolesByUserId: Record<string, DorokeiRole>
   jailedByUserId: Record<string, DorokeiJailState>
   lastCaptureAt: number | null
@@ -52,6 +53,14 @@ export interface DorokeiCounts {
   runners: number
   freeRunners: number
   jailedRunners: number
+}
+
+export interface DorokeiParticipant {
+  userId: string
+  displayName: string
+  role: DorokeiRole | null
+  jailed: boolean
+  isLocal: boolean
 }
 
 export interface DorokeiRadarContact {
@@ -128,6 +137,7 @@ export function createInitialDorokeiGameState(): DorokeiGameState {
     roundStartedAt: null,
     roundEndedAt: null,
     lastResetAt: null,
+    policeTargetCount: 1,
     rolesByUserId: {},
     jailedByUserId: {},
     lastCaptureAt: null,

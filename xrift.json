@@ -2,7 +2,7 @@
   "world": {
     "distDir": "./dist",
     "title": "Echo Maze",
-    "description": "Cooperative maze with beacon escape and Dorokei tag mode, including jail rescue and a periodic 3D radar HUD",
+    "description": "スカイボックス付きの協力迷路とドロケイ切替ワールド。ドロケイでは警察/泥棒のランダム分け、牢屋救出、3DレーダーHUDを使えます",
     "thumbnailPath": "thumbnail.png",
     "buildCommand": "npm run build",
     "ignore": [

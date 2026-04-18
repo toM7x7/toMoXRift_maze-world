@@ -8,6 +8,7 @@ import {
   DOROKEI_RADAR_PERIOD_MS,
   DOROKEI_RADAR_VISIBLE_MS,
   DOROKEI_RELEASE_SPAWN,
+  type DorokeiParticipant,
   type DorokeiRole,
 } from './types'
 import { useDorokeiGame } from './useDorokeiGame'
@@ -21,6 +22,26 @@ const JAIL_WALLS: Array<{
   { position: [9.35, 0.65, 15.35], size: [4.1, 1.3, 0.18] },
 ]
 
+function roleLabel(role: DorokeiRole | null) {
+  if (role === 'chaser') {
+    return '警察'
+  }
+  if (role === 'runner') {
+    return '泥棒'
+  }
+  return '未設定'
+}
+
+function roleColor(role: DorokeiRole | null) {
+  if (role === 'chaser') {
+    return '#fca5a5'
+  }
+  if (role === 'runner') {
+    return '#86efac'
+  }
+  return '#cbd5e1'
+}
+
 function RoleButton({
   role,
   active,
@@ -30,14 +51,14 @@ function RoleButton({
   active: boolean
   onSelect: (role: DorokeiRole) => void
 }) {
-  const isChaser = role === 'chaser'
-  const color = isChaser ? '#ef4444' : '#22c55e'
-  const label = isChaser ? 'CHASE' : 'RUN'
+  const isPolice = role === 'chaser'
+  const color = isPolice ? '#dc2626' : '#16a34a'
+  const label = roleLabel(role)
 
   return (
     <Interactable
       id={`dorokei-role-${role}`}
-      interactionText={`Join as ${role}`}
+      interactionText={`${label}になる`}
       onInteract={() => onSelect(role)}
     >
       <RigidBody type="fixed" colliders="cuboid">
@@ -51,7 +72,7 @@ function RoleButton({
         </mesh>
       </RigidBody>
       <Text position={[0, 0, 0.15]} fontSize={0.16} color={active ? '#0f172a' : '#ffffff'} anchorX="center" anchorY="middle">
-        {active ? `${label} SET` : label}
+        {active ? `${label}中` : label}
       </Text>
     </Interactable>
   )
@@ -108,20 +129,47 @@ function JailWall({
   )
 }
 
+function ParticipantRows({ participants }: { participants: DorokeiParticipant[] }) {
+  const visibleParticipants = participants.slice(0, 8)
+
+  return (
+    <>
+      {visibleParticipants.map((participant, index) => (
+        <Text
+          key={participant.userId}
+          position={[0, 0.4 - index * 0.22, 0.07]}
+          fontSize={0.1}
+          color={participant.jailed ? '#fca5a5' : roleColor(participant.role)}
+          anchorX="center"
+          anchorY="middle"
+          maxWidth={3.1}
+        >
+          {`${participant.isLocal ? '自分 ' : ''}${participant.displayName}: ${roleLabel(participant.role)}${participant.jailed ? ' / 牢屋' : ''}`}
+        </Text>
+      ))}
+      {participants.length > visibleParticipants.length ? (
+        <Text position={[0, 0.4 - visibleParticipants.length * 0.22, 0.07]} fontSize={0.09} color="#cbd5e1" anchorX="center" anchorY="middle">
+          {`他 ${participants.length - visibleParticipants.length} 名`}
+        </Text>
+      ) : null}
+    </>
+  )
+}
+
 export function DorokeiControlLayer() {
   const game = useDorokeiGame()
   const isRunning = game.state.phase === 'running'
   const roundText = isRunning
-    ? `ROUND LIVE / ${game.counts.chasers} chase / ${game.counts.runners} run / jailed ${game.counts.jailedRunners}`
-    : `LOBBY / ${game.counts.chasers} chase / ${game.counts.runners} run`
-  const radarText = `${DOROKEI_RADAR_VISIBLE_MS / 1000}s radar every ${DOROKEI_RADAR_PERIOD_MS / 1000}s`
-  const localRoleText = game.localRole ? game.localRole.toUpperCase() : 'UNSET'
-  const localStateText = game.localJailed ? 'JAILED' : isRunning ? 'ACTIVE' : 'READY'
+    ? `試合中 / 警察 ${game.counts.chasers} / 泥棒 ${game.counts.runners} / 牢屋 ${game.counts.jailedRunners}`
+    : `待機中 / 警察 ${game.counts.chasers} / 泥棒 ${game.counts.runners}`
+  const radarText = `${DOROKEI_RADAR_VISIBLE_MS / 1000}秒レーダー / ${DOROKEI_RADAR_PERIOD_MS / 1000}秒ごと`
+  const localRoleText = roleLabel(game.localRole)
+  const localStateText = game.localJailed ? '牢屋' : isRunning ? '参加中' : '準備中'
 
   return (
     <>
       <DorokeiRadarHud
-        isActive
+        isActive={isRunning}
         isRunning={isRunning}
         localRole={game.localRole}
         localJailed={game.localJailed}
@@ -138,16 +186,16 @@ export function DorokeiControlLayer() {
           <meshStandardMaterial color="#111827" emissive="#0f172a" emissiveIntensity={0.55} transparent opacity={0.9} />
         </mesh>
         <Text position={[0, 0.92, 0.05]} fontSize={0.22} color="#f8fafc" anchorX="center" anchorY="middle">
-          Dorokei Mode
+          ドロケイモード
         </Text>
         <Text position={[0, 0.56, 0.05]} fontSize={0.12} color="#cbd5e1" anchorX="center" anchorY="middle" maxWidth={6.9}>
-          Choose a role. Chasers tag runners within {DOROKEI_CAPTURE_RADIUS.toFixed(1)}m. Runners free prisoners at the jail gate or by touching them.
+          警察は泥棒に{DOROKEI_CAPTURE_RADIUS.toFixed(1)}m以内でタッチ。泥棒は牢屋ゲートか捕まった人をタッチして救出。
         </Text>
         <Text position={[0, 0.27, 0.05]} fontSize={0.12} color="#93c5fd" anchorX="center" anchorY="middle">
           {roundText}
         </Text>
         <Text position={[0, 0.02, 0.05]} fontSize={0.1} color="#fef08a" anchorX="center" anchorY="middle">
-          You: {game.localUser.displayName} / {localRoleText} / {localStateText} / {radarText}
+          {`あなた: ${game.localUser.displayName} / ${localRoleText} / ${localStateText} / ${radarText}`}
         </Text>
 
         <group position={[-2.35, -0.52, 0.06]}>
@@ -159,22 +207,63 @@ export function DorokeiControlLayer() {
         <group position={[0.95, -0.52, 0.06]}>
           <ActionButton
             id="dorokei-start"
-            label={isRunning ? 'LIVE' : 'START'}
+            label={isRunning ? '試合中' : '開始'}
             color="#2563eb"
-            interactionText={isRunning ? 'Round is already live' : 'Start Dorokei round'}
-            enabled={!isRunning}
+            interactionText={game.canStartRound ? 'ドロケイを開始' : '警察と泥棒を1人以上設定してください'}
+            enabled={!isRunning && game.canStartRound}
             onInteract={game.startRound}
           />
         </group>
         <group position={[2.62, -0.52, 0.06]}>
           <ActionButton
             id="dorokei-reset"
-            label="RESET"
+            label="リセット"
             color="#f97316"
-            interactionText="Reset Dorokei round"
+            interactionText="ドロケイをリセット"
             onInteract={game.resetRound}
           />
         </group>
+      </group>
+
+      <group position={[5.15, 1.45, 14.45]} scale={0.52}>
+        <mesh position={[0, -0.05, -0.06]}>
+          <boxGeometry args={[3.55, 2.6, 0.12]} />
+          <meshStandardMaterial color="#07111f" emissive="#0f172a" emissiveIntensity={0.38} transparent opacity={0.88} />
+        </mesh>
+        <Text position={[0, 1.05, 0.05]} fontSize={0.17} color="#f8fafc" anchorX="center" anchorY="middle">
+          参加者 / 役割
+        </Text>
+        <Text position={[0, 0.79, 0.05]} fontSize={0.1} color="#fef08a" anchorX="center" anchorY="middle">
+          {`警察人数: ${game.state.policeTargetCount ?? 1} / 参加 ${game.counts.connectedUsers}`}
+        </Text>
+        <group position={[-1.05, 0.58, 0.05]} scale={0.62}>
+          <ActionButton
+            id="dorokei-police-minus"
+            label="- 警察"
+            color="#475569"
+            interactionText="ランダム分けの警察人数を減らす"
+            onInteract={() => game.adjustPoliceTargetCount(-1)}
+          />
+        </group>
+        <group position={[0.65, 0.58, 0.05]} scale={0.62}>
+          <ActionButton
+            id="dorokei-police-plus"
+            label="+ 警察"
+            color="#475569"
+            interactionText="ランダム分けの警察人数を増やす"
+            onInteract={() => game.adjustPoliceTargetCount(1)}
+          />
+        </group>
+        <group position={[0, -1.0, 0.05]} scale={0.74}>
+          <ActionButton
+            id="dorokei-random-teams"
+            label="ランダム分け"
+            color="#7c3aed"
+            interactionText="指定人数で警察と泥棒をランダム分け"
+            onInteract={game.randomizeTeams}
+          />
+        </group>
+        <ParticipantRows participants={game.participants} />
       </group>
 
       <group position={[0, 0.58, 14.45]} scale={0.42}>
@@ -183,47 +272,60 @@ export function DorokeiControlLayer() {
           <meshStandardMaterial color="#18120a" emissive="#431407" emissiveIntensity={0.32} transparent opacity={0.88} />
         </mesh>
         <Text position={[-2.85, 0.26, 0.04]} fontSize={0.15} color="#fed7aa" anchorX="left" anchorY="middle">
-          SOLO DEBUG
+          ひとり検証
         </Text>
         <Text position={[0.82, 0.26, 0.04]} fontSize={0.1} color="#fdba74" anchorX="center" anchorY="middle" maxWidth={4.7}>
-          Use after upload to test self jail, release teleport, radar pulse, and state reset alone.
+          公開後に牢屋移動、解放、レーダー、状態初期化を単独確認。
         </Text>
         <group position={[-2.55, -0.17, 0.05]}>
           <ActionButton
             id="dorokei-debug-jail-self"
-            label="JAIL SELF"
+            label="自分を牢屋"
             color="#b91c1c"
-            interactionText="Solo debug: jail yourself"
+            interactionText="ひとり検証: 自分を牢屋へ送る"
             onInteract={game.debugJailSelf}
           />
         </group>
         <group position={[-0.85, -0.17, 0.05]}>
           <ActionButton
             id="dorokei-debug-free-self"
-            label="FREE SELF"
+            label="自分を解放"
             color="#0f766e"
-            interactionText="Solo debug: free yourself"
+            interactionText="ひとり検証: 自分を解放する"
             onInteract={game.debugFreeSelf}
           />
         </group>
         <group position={[0.85, -0.17, 0.05]}>
           <ActionButton
             id="dorokei-debug-radar-now"
-            label="RADAR NOW"
+            label="レーダー"
             color="#1d4ed8"
-            interactionText="Solo debug: force radar pulse"
+            interactionText="ひとり検証: レーダーを今すぐ出す"
             onInteract={game.debugForceRadarPulse}
           />
         </group>
         <group position={[2.55, -0.17, 0.05]}>
           <ActionButton
             id="dorokei-debug-reset-state"
-            label="RESET STATE"
+            label="全初期化"
             color="#a16207"
-            interactionText="Solo debug: clear Dorokei state"
+            interactionText="ひとり検証: ドロケイ状態を初期化"
             onInteract={game.debugResetState}
           />
         </group>
+      </group>
+
+      <group position={[-5.15, 0.78, 14.45]} scale={0.46}>
+        <mesh position={[0, 0, -0.06]}>
+          <boxGeometry args={[3.8, 1.08, 0.1]} />
+          <meshStandardMaterial color="#102018" emissive="#052e16" emissiveIntensity={0.28} transparent opacity={0.86} />
+        </mesh>
+        <Text position={[0, 0.28, 0.05]} fontSize={0.14} color="#bbf7d0" anchorX="center" anchorY="middle">
+          次の追加モード案
+        </Text>
+        <Text position={[0, -0.03, 0.05]} fontSize={0.1} color="#dcfce7" anchorX="center" anchorY="middle" maxWidth={3.35}>
+          泥棒がビーコンを集める「収集ドロケイ」。警察は回収前に捕まえる。
+        </Text>
       </group>
 
       <group position={[0, 0.04, 0]}>
@@ -244,7 +346,7 @@ export function DorokeiControlLayer() {
       <group position={[7.12, 0.75, 16.85]}>
         <Interactable
           id="dorokei-jail-gate"
-          interactionText="Free jailed runners"
+          interactionText="牢屋の泥棒を全員解放"
           enabled={isRunning && !game.localJailed}
           onInteract={game.rescueAll}
         >
@@ -256,15 +358,15 @@ export function DorokeiControlLayer() {
           </RigidBody>
         </Interactable>
         <Text position={[0, 0.96, 0]} rotation={[0, Math.PI / 2, 0]} fontSize={0.16} color="#fef3c7" anchorX="center" anchorY="middle">
-          JAIL GATE
+          救出ゲート
         </Text>
       </group>
 
       <Text position={[9.35, 1.7, 16.85]} rotation={[0, Math.PI, 0]} fontSize={0.2} color="#e2e8f0" anchorX="center" anchorY="middle">
-        Jail
+        牢屋
       </Text>
       <Text position={[DOROKEI_RELEASE_SPAWN[0], 0.18, DOROKEI_RELEASE_SPAWN[2]]} rotation={[-Math.PI / 2, 0, 0]} fontSize={0.2} color="#ccfbf1" anchorX="center" anchorY="middle">
-        FREE
+        解放
       </Text>
     </>
   )
