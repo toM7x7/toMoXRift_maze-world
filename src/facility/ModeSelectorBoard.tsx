@@ -124,19 +124,19 @@ export function ModeSelectorBoard({
       <RigidBody type="fixed" colliders="cuboid" restitution={0} friction={1}>
         <mesh castShadow receiveShadow>
           <boxGeometry args={[boardWidth, boardHeight, 0.18]} />
-          <meshStandardMaterial color="#0f172a" emissive="#111827" emissiveIntensity={0.34} roughness={0.82} />
+          <meshStandardMaterial color="#fff7ed" emissive="#fed7aa" emissiveIntensity={0.24} roughness={0.72} />
         </mesh>
       </RigidBody>
 
       <mesh position={[0, 0, -0.12]} castShadow receiveShadow>
         <boxGeometry args={[boardWidth - 0.2, boardHeight - 0.2, 0.04]} />
-        <meshStandardMaterial color="#111827" opacity={0.62} transparent />
+        <meshStandardMaterial color="#ffffff" opacity={0.82} transparent />
       </mesh>
 
       <Text
         position={[0, boardHeight * 0.32, 0.12]}
         fontSize={0.24}
-        color="#f8fafc"
+        color="#0f172a"
         anchorX="center"
         anchorY="middle"
       >
@@ -147,7 +147,7 @@ export function ModeSelectorBoard({
         <Text
           position={[0, boardHeight * 0.12, 0.12]}
           fontSize={0.1}
-          color="#cbd5e1"
+          color="#334155"
           anchorX="center"
           anchorY="middle"
           maxWidth={boardWidth - 0.7}

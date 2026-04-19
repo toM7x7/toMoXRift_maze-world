@@ -1,9 +1,10 @@
-export type FacilityMode = 'maze' | 'dorokei'
+export type FacilityMode = 'entrance' | 'maze' | 'dorokei'
 
 export type FacilitySurface =
+  | 'entranceLayer'
   | 'sharedFloor'
   | 'sharedSkybox'
-  | 'sharedWalls'
+  | 'eventWalls'
   | 'modeBoard'
   | 'briefingBoard'
   | 'rosterBoard'
@@ -16,9 +17,10 @@ export type FacilitySurface =
 
 export interface FacilityVisibility {
   mode: FacilityMode
+  entranceLayer: boolean
   sharedFloor: true
   sharedSkybox: true
-  sharedWalls: true
+  eventWalls: boolean
   modeBoard: boolean
   briefingBoard: boolean
   rosterBoard: boolean
@@ -31,9 +33,10 @@ export interface FacilityVisibility {
 }
 
 export const FACILITY_SURFACES: readonly FacilitySurface[] = [
+  'entranceLayer',
   'sharedFloor',
   'sharedSkybox',
-  'sharedWalls',
+  'eventWalls',
   'modeBoard',
   'briefingBoard',
   'rosterBoard',
@@ -46,18 +49,19 @@ export const FACILITY_SURFACES: readonly FacilitySurface[] = [
 ] as const
 
 export function isFacilityMode(value: string): value is FacilityMode {
-  return value === 'maze' || value === 'dorokei'
+  return value === 'entrance' || value === 'maze' || value === 'dorokei'
 }
 
 export function getFacilityVisibility(mode: FacilityMode): FacilityVisibility {
   return {
     mode,
+    entranceLayer: mode === 'entrance',
     sharedFloor: true,
     sharedSkybox: true,
-    sharedWalls: true,
-    modeBoard: true,
+    eventWalls: mode !== 'entrance',
+    modeBoard: mode === 'entrance',
     briefingBoard: mode === 'maze',
-    rosterBoard: true,
+    rosterBoard: mode === 'dorokei',
     mazeObjectives: mode === 'maze',
     mazeClearLog: mode === 'maze',
     dorokeiLayer: mode === 'dorokei',
@@ -79,6 +83,10 @@ export function shouldShowMazeObjectives(mode: FacilityMode): boolean {
   return mode === 'maze'
 }
 
+export function shouldShowEntranceLayer(mode: FacilityMode): boolean {
+  return mode === 'entrance'
+}
+
 export function shouldShowDorokeiLayer(mode: FacilityMode): boolean {
   return mode === 'dorokei'
 }
@@ -90,4 +98,3 @@ export function shouldShowOverheadScoreboard(mode: FacilityMode): boolean {
 export function shouldShowAdminArea(): boolean {
   return false
 }
-

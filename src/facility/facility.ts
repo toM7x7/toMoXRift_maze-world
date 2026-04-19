@@ -1,6 +1,6 @@
-export type FacilityMode = 'maze' | 'dorokei'
+export type FacilityMode = 'entrance' | 'maze' | 'dorokei'
 
-export const FACILITY_MODES = ['maze', 'dorokei'] as const
+export const FACILITY_MODES = ['entrance', 'maze', 'dorokei'] as const
 
 export type BeaconKey = 'a' | 'b' | 'c'
 export type Vec3 = readonly [number, number, number]
@@ -37,23 +37,30 @@ export interface FacilityMetrics {
 }
 
 export const FACILITY_COLORS = {
-  background: '#0a1020',
-  fog: '#070b12',
-  floor: '#131b2c',
-  outerWall: '#353c4e',
-  goalWall: '#4a4530',
-  redSector: '#571616',
-  blueSector: '#1d274f',
-  greenSector: '#1a4f2c',
-  graySector: '#2e3542',
-  sky: '#071328',
-  skyRing: '#1d4ed8',
-  moon: '#fef3c7',
+  background: '#c7f4ff',
+  fog: '#dff8ff',
+  floor: '#fef3c7',
+  floorAccent: '#fed7aa',
+  entranceFloor: '#fff7ed',
+  entranceRail: '#fb923c',
+  entranceArch: '#f97316',
+  outerWall: '#f8fafc',
+  outerWallStripe: '#fb7185',
+  goalWall: '#fde68a',
+  redSector: '#fb7185',
+  blueSector: '#60a5fa',
+  greenSector: '#4ade80',
+  graySector: '#a78bfa',
+  sky: '#87dcff',
+  skyHorizon: '#fef3c7',
+  skyRing: '#38bdf8',
+  sun: '#fde047',
+  cloud: '#ffffff',
   starCold: '#bfdbfe',
   starWarm: '#f8fafc',
-  beaconRed: '#e74c3c',
-  beaconBlue: '#3498db',
-  beaconGreen: '#2ecc71',
+  beaconRed: '#ef4444',
+  beaconBlue: '#2563eb',
+  beaconGreen: '#16a34a',
 } as const
 
 export const FACILITY_METRICS: FacilityMetrics = {
@@ -69,13 +76,24 @@ export const FACILITY_METRICS: FacilityMetrics = {
 }
 
 export const FACILITY_SPAWN = {
-  position: [0, 0, 17.5] as const,
+  position: [0, 0, 36.5] as const,
   yaw: 0,
 } as const
 
+export const FACILITY_EVENT_SPAWN = {
+  position: [0, 0, 17.5] as const,
+  yaw: Math.PI,
+} as const
+
 export const FACILITY_BOUNDS = {
-  floorCenter: [0, 0, -2] as const,
-  floorSize: [60, 60] as const,
+  floorCenter: [0, 0, 4] as const,
+  floorSize: [72, 82] as const,
+  entrance: {
+    xMin: -18,
+    xMax: 18,
+    zMin: 22,
+    zMax: 41,
+  },
   outer: {
     xMin: -22,
     xMax: 22,
@@ -124,9 +142,9 @@ export const FACILITY_BOUNDS = {
 
 export const FACILITY_BOARDS = {
   mode: {
-    position: [-21.42, 1.7, 14.4] as const,
-    rotation: [0, Math.PI / 2, 0] as const,
-    scale: 0.34,
+    position: [0, 2.75, 30.2] as const,
+    rotation: [0, 0, 0] as const,
+    scale: 0.92,
   },
   roster: {
     position: [21.42, 2.55, 9.6] as const,
@@ -172,6 +190,16 @@ export const FACILITY_BEACONS: Record<BeaconKey, BeaconConfig> = {
 }
 
 export const FACILITY_WALLS = {
+  entrance: [
+    { position: [0, 1.1, 41], size: [36, 2.2, 0.6], color: FACILITY_COLORS.entranceRail },
+    { position: [-18, 1.1, 31.5], size: [0.6, 2.2, 19], color: FACILITY_COLORS.entranceRail },
+    { position: [18, 1.1, 31.5], size: [0.6, 2.2, 19], color: FACILITY_COLORS.entranceRail },
+    { position: [-11.5, 1.4, 22], size: [13, 2.8, 0.6], color: FACILITY_COLORS.entranceArch },
+    { position: [11.5, 1.4, 22], size: [13, 2.8, 0.6], color: FACILITY_COLORS.entranceArch },
+    { position: [-4.2, 1.8, 22], size: [0.6, 3.6, 0.8], color: FACILITY_COLORS.entranceArch },
+    { position: [4.2, 1.8, 22], size: [0.6, 3.6, 0.8], color: FACILITY_COLORS.entranceArch },
+    { position: [0, 3.5, 22], size: [8.8, 0.55, 0.8], color: FACILITY_COLORS.entranceArch },
+  ] as const satisfies readonly WallSpec[],
   outer: [
     { position: [0, 1.5, 20], size: [44, 3, 1], color: FACILITY_COLORS.outerWall },
     { position: [0, 1.5, -24], size: [44, 3, 1], color: FACILITY_COLORS.outerWall },

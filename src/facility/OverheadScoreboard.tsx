@@ -54,25 +54,25 @@ export function OverheadScoreboard({
       <RigidBody type="fixed" colliders="cuboid" restitution={0} friction={1}>
         <mesh castShadow receiveShadow>
           <boxGeometry args={[boardWidth, boardHeight, 0.24]} />
-          <meshStandardMaterial color="#020617" emissive="#0f172a" emissiveIntensity={0.44} roughness={0.82} />
+          <meshStandardMaterial color="#fff7ed" emissive="#fed7aa" emissiveIntensity={0.22} roughness={0.78} />
         </mesh>
       </RigidBody>
 
       <mesh position={[0, 0, -0.16]} castShadow receiveShadow>
         <boxGeometry args={[boardWidth - 0.18, boardHeight - 0.18, 0.04]} />
-        <meshStandardMaterial color="#0f172a" opacity={0.42} transparent />
+        <meshStandardMaterial color="#ffffff" opacity={0.7} transparent />
       </mesh>
 
       <group position={[0, boardHeight * 0.18, 0.14]}>
         <Billboard follow lockX={false} lockY={false} lockZ={false}>
-          <Text fontSize={0.28} color="#f8fafc" anchorX="center" anchorY="middle">
+          <Text fontSize={0.28} color="#0f172a" anchorX="center" anchorY="middle">
             {title}
           </Text>
         </Billboard>
 
         {subtitle && (
           <Billboard follow lockX={false} lockY={false} lockZ={false}>
-            <Text position={[0, -0.34, 0]} fontSize={0.1} color="#cbd5e1" anchorX="center" anchorY="middle">
+            <Text position={[0, -0.34, 0]} fontSize={0.1} color="#334155" anchorX="center" anchorY="middle">
               {subtitle}
             </Text>
           </Billboard>
@@ -93,7 +93,7 @@ export function OverheadScoreboard({
               <Text position={[0, 0.1, 0.08]} fontSize={0.16} color="#0f172a" anchorX="center" anchorY="middle">
                 {metric.label}
               </Text>
-              <Text position={[0, -0.1, 0.08]} fontSize={0.24} color="#f8fafc" anchorX="center" anchorY="middle">
+              <Text position={[0, -0.1, 0.08]} fontSize={0.24} color="#ffffff" anchorX="center" anchorY="middle">
                 {metric.value}
                 {metric.suffix ?? ''}
               </Text>

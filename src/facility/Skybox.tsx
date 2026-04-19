@@ -5,19 +5,22 @@ export interface SkyboxProps {
   radius?: number
 }
 
-const SKY_STARS: Array<[number, number, number, number]> = Array.from({ length: 56 }, (_, index) => {
-  const angle = index * 2.399963229728653
-  const height = 42 + (index % 9) * 7.5
-  const radius = 84 + (index % 5) * 10
-  return [
-    Math.cos(angle) * radius,
-    height,
-    Math.sin(angle) * radius,
-    0.08 + (index % 4) * 0.025,
-  ]
-})
+const CLOUDS: Array<[number, number, number, number]> = [
+  [-54, 42, -64, 1.4],
+  [-48, 44, -66, 1.1],
+  [-42, 42, -63, 1.25],
+  [34, 46, -74, 1.5],
+  [41, 48, -76, 1.15],
+  [47, 45, -73, 1.25],
+  [-14, 52, -92, 1.2],
+  [-7, 54, -94, 1.5],
+  [1, 52, -91, 1.05],
+  [58, 38, 10, 1.2],
+  [64, 40, 12, 1.45],
+  [70, 38, 9, 1.1],
+]
 
-// Procedural skydome extracted from the current maze-world scene.
+// Bright procedural skydome for the entrance-first event facility.
 export function Skybox({ radius = 170 }: SkyboxProps) {
   return (
     <group>
@@ -25,18 +28,22 @@ export function Skybox({ radius = 170 }: SkyboxProps) {
         <sphereGeometry args={[radius, 48, 24]} />
         <meshBasicMaterial color={FACILITY_COLORS.sky} side={BackSide} />
       </mesh>
-      <mesh position={[0, 22, -82]}>
-        <torusGeometry args={[44, 0.18, 8, 96]} />
-        <meshBasicMaterial color={FACILITY_COLORS.skyRing} transparent opacity={0.22} />
+      <mesh position={[0, 4, -92]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[78, 0.3, 10, 128]} />
+        <meshBasicMaterial color={FACILITY_COLORS.skyHorizon} transparent opacity={0.42} />
       </mesh>
-      <mesh position={[-42, 58, -74]}>
-        <sphereGeometry args={[4.8, 24, 12]} />
-        <meshBasicMaterial color={FACILITY_COLORS.moon} transparent opacity={0.92} />
+      <mesh position={[-46, 64, -84]}>
+        <sphereGeometry args={[7.4, 32, 16]} />
+        <meshBasicMaterial color={FACILITY_COLORS.sun} transparent opacity={0.96} />
       </mesh>
-      {SKY_STARS.map(([x, y, z, starRadius], index) => (
-        <mesh key={`sky-star-${index}`} position={[x, y, z]}>
-          <sphereGeometry args={[starRadius, 8, 8]} />
-          <meshBasicMaterial color={index % 5 === 0 ? FACILITY_COLORS.starCold : FACILITY_COLORS.starWarm} />
+      <mesh position={[-46, 64, -84]}>
+        <sphereGeometry args={[10.5, 32, 16]} />
+        <meshBasicMaterial color={FACILITY_COLORS.sun} transparent opacity={0.18} />
+      </mesh>
+      {CLOUDS.map(([x, y, z, scale], index) => (
+        <mesh key={`sky-cloud-${index}`} position={[x, y, z]} scale={[scale * 5, scale * 1.2, scale * 2.1]}>
+          <sphereGeometry args={[1, 16, 8]} />
+          <meshBasicMaterial color={FACILITY_COLORS.cloud} transparent opacity={0.78} />
         </mesh>
       ))}
     </group>

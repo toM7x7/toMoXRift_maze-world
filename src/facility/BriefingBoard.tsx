@@ -38,7 +38,7 @@ export function BriefingBoard({
   subtitle,
   entries,
   footer,
-  accentColor = '#0f172a',
+  accentColor = '#fff7ed',
   position = [0, 2.1, 0],
   rotation = [0, 0, 0],
   scale = 1,
@@ -53,19 +53,19 @@ export function BriefingBoard({
       <RigidBody type="fixed" colliders="cuboid" restitution={0} friction={1}>
         <mesh castShadow receiveShadow>
           <boxGeometry args={[width, boardHeight, 0.18]} />
-          <meshStandardMaterial color={accentColor} emissive="#111827" emissiveIntensity={0.22} roughness={0.9} />
+          <meshStandardMaterial color={accentColor} emissive="#fed7aa" emissiveIntensity={0.2} roughness={0.82} />
         </mesh>
       </RigidBody>
 
       <mesh position={[0, 0, -0.1]} castShadow receiveShadow>
         <boxGeometry args={[width - 0.2, boardHeight - 0.2, 0.04]} />
-        <meshStandardMaterial color="#111827" opacity={0.56} transparent />
+        <meshStandardMaterial color="#ffffff" opacity={0.78} transparent />
       </mesh>
 
       <Text
         position={[0, contentTop, 0.12]}
         fontSize={0.24}
-        color="#f8fafc"
+        color="#0f172a"
         anchorX="center"
         anchorY="middle"
       >
@@ -76,7 +76,7 @@ export function BriefingBoard({
         <Text
           position={[0, contentTop - 0.34, 0.12]}
           fontSize={0.1}
-          color="#cbd5e1"
+          color="#334155"
           anchorX="center"
           anchorY="middle"
           maxWidth={width - 0.8}
@@ -103,7 +103,7 @@ export function BriefingBoard({
             <Text
               position={[0.15, 0.04, 0]}
               fontSize={0.1}
-              color="#f8fafc"
+              color="#111827"
               anchorX="left"
               anchorY="middle"
               maxWidth={width * 0.72}

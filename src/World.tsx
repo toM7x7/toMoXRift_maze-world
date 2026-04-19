@@ -12,9 +12,11 @@ import {
 import { DorokeiControlLayer } from './dorokei/DorokeiControlLayer'
 import {
   FACILITY_BEACONS,
+  FACILITY_BOUNDS,
   FACILITY_BOARDS,
   FACILITY_CLEAR_LOG_LIMIT,
   FACILITY_COLORS,
+  FACILITY_EVENT_SPAWN,
   FACILITY_GATE_OPEN_MS,
   FACILITY_SPAWN,
   FACILITY_WALLS,
@@ -45,6 +47,7 @@ interface ClearResult {
 export interface WorldProps {
   position?: [number, number, number]
   scale?: number
+  initialMode?: WorldMode
 }
 
 const INITIAL_RUN_STATE: MazeRunState = {
@@ -64,6 +67,8 @@ const TAGS = [
 
 const HUB_SPAWN = [...FACILITY_SPAWN.position] as [number, number, number]
 const HUB_YAW = FACILITY_SPAWN.yaw
+const EVENT_SPAWN = [...FACILITY_EVENT_SPAWN.position] as [number, number, number]
+const EVENT_YAW = FACILITY_EVENT_SPAWN.yaw
 
 interface BeaconSwitchProps {
   beacon: BeaconKey
@@ -133,7 +138,182 @@ function HubGuide({
   )
 }
 
-export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
+function FloorTextureLayer({ showEntrancePattern }: { showEntrancePattern: boolean }) {
+  const eventStripes = [-14, -7, 0, 7, 14]
+  const entranceTiles = [-12, -6, 0, 6, 12]
+
+  return (
+    <group>
+      {eventStripes.map((x, index) => (
+        <mesh key={`event-floor-stripe-${x}`} position={[x, 0.012, -2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[0.22, 48]} />
+          <meshStandardMaterial
+            color={index % 2 === 0 ? '#bfdbfe' : '#fecaca'}
+            transparent
+            opacity={0.34}
+            emissive={index % 2 === 0 ? '#dbeafe' : '#fee2e2'}
+            emissiveIntensity={0.08}
+          />
+        </mesh>
+      ))}
+
+      {showEntrancePattern && entranceTiles.map((x, xIndex) => (
+        entranceTiles.map((offset, zIndex) => (
+          <mesh
+            key={`entrance-tile-${x}-${offset}`}
+            position={[x, 0.018, 28 + offset * 0.7]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            receiveShadow
+          >
+            <planeGeometry args={[3.8, 3.8]} />
+            <meshStandardMaterial
+              color={(xIndex + zIndex) % 2 === 0 ? '#ffffff' : FACILITY_COLORS.floorAccent}
+              transparent
+              opacity={0.36}
+              roughness={0.8}
+            />
+          </mesh>
+        ))
+      ))}
+
+      {showEntrancePattern && (
+        <mesh position={[0, 0.025, 28.6]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[8.4, 12.8]} />
+          <meshStandardMaterial color="#bae6fd" transparent opacity={0.38} emissive="#7dd3fc" emissiveIntensity={0.12} />
+        </mesh>
+      )}
+    </group>
+  )
+}
+
+function EntranceModeGate({
+  mode,
+  label,
+  subtitle,
+  color,
+  position,
+  onSelect,
+}: {
+  mode: Exclude<WorldMode, 'entrance'>
+  label: string
+  subtitle: string
+  color: string
+  position: [number, number, number]
+  onSelect: (mode: Exclude<WorldMode, 'entrance'>) => void
+}) {
+  return (
+    <group position={position}>
+      <Interactable
+        id={`entrance-mode-gate-${mode}`}
+        interactionText={`${label}で遊ぶ`}
+        onInteract={() => onSelect(mode)}
+      >
+        <RigidBody type="fixed" colliders="cuboid" restitution={0} friction={1}>
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={[4.6, 3.2, 0.52]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.42} roughness={0.5} />
+          </mesh>
+        </RigidBody>
+      </Interactable>
+      <mesh position={[0, -1.8, 0.1]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <circleGeometry args={[2.2, 48]} />
+        <meshStandardMaterial color={color} transparent opacity={0.24} emissive={color} emissiveIntensity={0.28} />
+      </mesh>
+      <Text position={[0, 0.42, 0.32]} fontSize={0.42} color="#ffffff" anchorX="center" anchorY="middle">
+        {label}
+      </Text>
+      <Text position={[0, -0.18, 0.32]} fontSize={0.17} color="#fff7ed" anchorX="center" anchorY="middle" maxWidth={3.8}>
+        {subtitle}
+      </Text>
+    </group>
+  )
+}
+
+function EntranceExperience({
+  onSelectMode,
+}: {
+  onSelectMode: (mode: Exclude<WorldMode, 'entrance'>) => void
+}) {
+  return (
+    <>
+      {FACILITY_WALLS.entrance.map((wall, index) => (
+        <Wall key={`entrance-wall-${index}`} {...wall} />
+      ))}
+
+      <Text position={[0, 4.15, 22.45]} fontSize={0.42} color="#7c2d12" anchorX="center" anchorY="middle">
+        ここからイベントワールド
+      </Text>
+      <Text position={[0, 3.55, 30.6]} fontSize={0.34} color="#0f172a" anchorX="center" anchorY="middle">
+        まず遊び方を選んでください
+      </Text>
+
+      <ModeSelectorBoard
+        title="モード選択"
+        subtitle="入口で選んでからイベント空間へ入ります"
+        options={[
+          { id: 'maze', label: '迷路', description: 'ビーコンを集めて脱出', accentColor: '#2563eb' },
+          { id: 'dorokei', label: 'ドロケイ', description: '警察と泥棒で遊ぶ', accentColor: '#dc2626' },
+        ]}
+        activeOptionId="entrance"
+        onSelectOption={(nextMode) => onSelectMode(nextMode as Exclude<WorldMode, 'entrance'>)}
+        interactionText={(option) => `${option.label}を開始`}
+        position={[...FACILITY_BOARDS.mode.position]}
+        rotation={[...FACILITY_BOARDS.mode.rotation]}
+        scale={FACILITY_BOARDS.mode.scale}
+      />
+
+      <EntranceModeGate
+        mode="maze"
+        label="迷路"
+        subtitle="3つのビーコンを起動してゴールへ"
+        color="#2563eb"
+        position={[-5.4, 1.82, 25.2]}
+        onSelect={onSelectMode}
+      />
+      <EntranceModeGate
+        mode="dorokei"
+        label="ドロケイ"
+        subtitle="警察と泥棒に分かれて追いかけっこ"
+        color="#dc2626"
+        position={[5.4, 1.82, 25.2]}
+        onSelect={onSelectMode}
+      />
+
+      {[-13, -8, 8, 13].map((x, index) => (
+        <group key={`entrance-balloon-${index}`} position={[x, 2.8, 34.2 + (index % 2) * 2.2]}>
+          <mesh castShadow>
+            <sphereGeometry args={[0.55, 24, 16]} />
+            <meshStandardMaterial color={index % 2 === 0 ? '#f97316' : '#22c55e'} emissive={index % 2 === 0 ? '#fdba74' : '#86efac'} emissiveIntensity={0.22} />
+          </mesh>
+          <mesh position={[0, -0.9, 0]}>
+            <boxGeometry args={[0.035, 1.6, 0.035]} />
+            <meshStandardMaterial color="#78350f" />
+          </mesh>
+        </group>
+      ))}
+    </>
+  )
+}
+
+function ReturnToEntranceConsole({ onReturn }: { onReturn: () => void }) {
+  return (
+    <group position={[0, 1.05, 18.7]}>
+      <Interactable id="return-to-entrance" interactionText="入口ロビーへ戻る" onInteract={onReturn}>
+        <RigidBody type="fixed" colliders="cuboid" restitution={0} friction={1}>
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={[3.4, 1.2, 0.42]} />
+            <meshStandardMaterial color="#f97316" emissive="#fdba74" emissiveIntensity={0.38} roughness={0.48} />
+          </mesh>
+        </RigidBody>
+      </Interactable>
+      <Text position={[0, 0.08, 0.28]} fontSize={0.18} color="#ffffff" anchorX="center" anchorY="middle">
+        入口へ戻る
+      </Text>
+    </group>
+  )
+}
+
+export function World({ position = [0, 0, 0], scale = 1, initialMode = 'entrance' }: WorldProps) {
   const { teleport } = useTeleport()
   const [runState, setRunState] = useInstanceState<MazeRunState>(
     'echo-maze-run-state',
@@ -144,16 +324,18 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
     [],
   )
   const [worldMode, setWorldMode] = useInstanceState<WorldMode>(
-    'echo-maze-world-mode',
-    'maze',
+    'echo-maze-world-mode-v2',
+    initialMode,
   )
   const [now, setNow] = useState(() => Date.now())
   const didTeleportOnMountRef = useRef(false)
   const facilityVisibility = getFacilityVisibility(worldMode)
 
+  const isEntranceMode = facilityVisibility.entranceLayer
   const isMazeMode = facilityVisibility.mazeObjectives
   const isDorokeiMode = facilityVisibility.dorokeiLayer
-  const showLabyrinthWalls = facilityVisibility.sharedWalls
+  const isEventMode = facilityVisibility.eventWalls
+  const showLabyrinthWalls = facilityVisibility.eventWalls
   const allBeaconsOn = runState.beacons.a && runState.beacons.b && runState.beacons.c
   const gateTimeLeftMs = runState.gateOpen && runState.gateOpenedAt
     ? Math.max(0, FACILITY_GATE_OPEN_MS - (now - runState.gateOpenedAt))
@@ -166,11 +348,13 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
 
     didTeleportOnMountRef.current = true
     const timeoutId = window.setTimeout(() => {
-      teleport({ position: HUB_SPAWN, yaw: HUB_YAW })
+      const spawn = worldMode === 'entrance' ? HUB_SPAWN : EVENT_SPAWN
+      const yaw = worldMode === 'entrance' ? HUB_YAW : EVENT_YAW
+      teleport({ position: spawn, yaw })
     }, 120)
 
     return () => window.clearTimeout(timeoutId)
-  }, [teleport])
+  }, [teleport, worldMode])
 
   useEffect(() => {
     if (!runState.gateOpen) {
@@ -239,12 +423,19 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
     teleport({ position: HUB_SPAWN, yaw: HUB_YAW })
   }
 
-  const selectWorldMode = (nextMode: WorldMode) => {
+  const enterWorldMode = (nextMode: Exclude<WorldMode, 'entrance'>) => {
     setWorldMode(nextMode)
 
     if (nextMode === 'maze') {
       setRunState(INITIAL_RUN_STATE)
     }
+
+    teleport({ position: EVENT_SPAWN, yaw: EVENT_YAW })
+  }
+
+  const returnToEntrance = () => {
+    setWorldMode('entrance')
+    teleport({ position: HUB_SPAWN, yaw: HUB_YAW })
   }
 
   const registerClear = () => {
@@ -297,48 +488,39 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
       <fog attach="fog" args={[FACILITY_COLORS.fog, 14, 64]} />
       <Skybox />
 
-      <ambientLight intensity={0.62} />
+      <ambientLight intensity={1.05} />
+      <hemisphereLight args={['#ffffff', '#fed7aa', 1.18]} />
       <directionalLight
-        position={[12, 22, 6]}
-        intensity={1.45}
+        position={[-10, 26, 12]}
+        intensity={2.15}
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
       />
-      <pointLight position={[0, 5.5, 15.5]} intensity={36} distance={28} color="#f8fafc" />
-      <pointLight position={[-8.5, 3.5, 13.5]} intensity={14} distance={12} color="#ef4444" />
-      <pointLight position={[0, 3.5, 12.6]} intensity={14} distance={12} color="#60a5fa" />
-      <pointLight position={[8.5, 3.5, 13.5]} intensity={14} distance={12} color="#22c55e" />
+      <pointLight position={[0, 5.5, 31]} intensity={58} distance={30} color="#fff7ed" />
+      <pointLight position={[-8.5, 3.5, 13.5]} intensity={20} distance={13} color="#fb7185" />
+      <pointLight position={[0, 3.5, 12.6]} intensity={20} distance={13} color="#60a5fa" />
+      <pointLight position={[8.5, 3.5, 13.5]} intensity={20} distance={13} color="#22c55e" />
 
       <RigidBody type="fixed" colliders="cuboid" restitution={0} friction={1}>
-        <mesh position={[0, 0, -2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <planeGeometry args={[60, 60]} />
+        <mesh position={[...FACILITY_BOUNDS.floorCenter]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[...FACILITY_BOUNDS.floorSize]} />
           <meshStandardMaterial color={FACILITY_COLORS.floor} />
         </mesh>
       </RigidBody>
+      <FloorTextureLayer showEntrancePattern={isEntranceMode} />
 
       <SpawnPoint position={HUB_SPAWN} yaw={HUB_YAW} />
-      <ModeSelectorBoard
-        title="ワールドモード"
-        subtitle="切替しても現在位置は保持"
-        options={[
-          { id: 'maze', label: '迷路', description: 'ビーコン攻略', accentColor: '#2563eb' },
-          { id: 'dorokei', label: 'ドロケイ', description: '警察と泥棒', accentColor: '#dc2626' },
-        ]}
-        activeOptionId={worldMode}
-        onSelectOption={(nextMode) => selectWorldMode(nextMode as WorldMode)}
-        interactionText={(option) => `${option.label}に切り替え`}
-        position={[...FACILITY_BOARDS.mode.position]}
-        rotation={[...FACILITY_BOARDS.mode.rotation]}
-        scale={FACILITY_BOARDS.mode.scale}
-      />
 
-      {FACILITY_WALLS.outer.map((wall, index) => (
+      {isEntranceMode && <EntranceExperience onSelectMode={enterWorldMode} />}
+
+      {isEventMode && FACILITY_WALLS.outer.map((wall, index) => (
         <Wall key={`outer-${index}`} {...wall} />
       ))}
       {showLabyrinthWalls && FACILITY_WALLS.maze.map((wall, index) => (
         <Wall key={`maze-${index}`} {...wall} />
       ))}
+      {isEventMode && <ReturnToEntranceConsole onReturn={returnToEntrance} />}
       {isMazeMode && (
         <>
           {FACILITY_WALLS.goal.map((wall, index) => (
@@ -378,7 +560,7 @@ export function World({ position = [0, 0, 0], scale = 1 }: WorldProps) {
               { heading: '集合', body: 'セクターを声に出し、3つ点灯後にゲートへ集合。' },
             ]}
             footer={latestClear ? `直近クリア: ${formatDuration(latestClear.durationMs)}` : '声かけと目印色で迷わない設計。'}
-            accentColor="#10203a"
+            accentColor="#fff7ed"
             position={[...FACILITY_BOARDS.briefing.position]}
             rotation={[...FACILITY_BOARDS.briefing.rotation]}
             scale={FACILITY_BOARDS.briefing.scale}

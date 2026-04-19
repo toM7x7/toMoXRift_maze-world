@@ -2,7 +2,7 @@
   "world": {
     "distDir": "./dist",
     "title": "Echo Maze",
-    "description": "スカイボックス付きの協力迷路とドロケイ切替ワールド。ドロケイでは警察/泥棒のランダム分け、牢屋救出、3DレーダーHUDを使えます",
+    "description": "明るい入口ロビーで迷路/ドロケイを選んでからイベント空間へ入るXRiftワールド。協力迷路、ドロケイ、頭上スコア、3DレーダーHUDを遊べます",
     "thumbnailPath": "thumbnail.png",
     "buildCommand": "npm run build",
     "ignore": [

@@ -1,29 +1,29 @@
 # Facility Integration Note
 
-This directory is the shared planning and visibility boundary for the maze-world facility.
-It exists to keep later geometry and HUD work aligned while avoiding conflicts between workers.
+This directory owns the shared facility layer for maze-world: constants, visibility rules, primitive shell helpers, skybox, and reusable boards.
 
 ## Current Design Intent
 
-- `maze` mode is the briefing-and-objective mode.
-- `dorokei` mode reuses the same maze shell and hides maze-only objective surfaces.
-- The jail target is the east-middle pocket, not the lobby.
-- Admin/debug stays outside the normal route and must remain invisible to regular users.
+- `entrance` is the default mode.
+- The entrance lobby is a separate social and decision zone.
+- `maze` and `dorokei` are event-field modes.
+- Event walls and gameplay surfaces stay hidden until a mode is selected.
+- The world should read as bright, public, and playful before interaction.
 
 ## Integration Checklist
 
-1. Keep the shared shell visible in both modes.
-2. Hide maze-only surfaces in Dorokei: beacon prompts, gate/goal copy, clear log, and other maze objective surfaces.
-3. Keep Dorokei-only surfaces hidden in Maze: jail, rescue affordances, radar HUD, and the overhead score board.
-4. Keep the mode board and roster board in the gatehouse only.
-5. Validate that the jail sits in the east-middle pocket and has two rescue approaches plus one release fork.
-6. Validate that the overhead score board is readable from the floor by looking up, not by opening a menu.
-7. Validate that admin/debug cannot be discovered from the main route.
-8. Keep the mode switch non-teleporting so players do not get reset on mode changes.
+1. Keep `FACILITY_SPAWN` in the entrance lobby.
+2. Keep `FACILITY_EVENT_SPAWN` inside the event field.
+3. Show `FACILITY_WALLS.entrance` only in `entrance`.
+4. Show event walls and gameplay layers only in `maze` or `dorokei`.
+5. Use the event-side return console instead of side-wall mode switching.
+6. Keep visible geometry and Rapier colliders aligned for all primitive walls/gates.
+7. Keep admin/debug outside normal sightlines.
+8. If adding new modes, extend `visibility.ts` before adding scattered checks.
 
-## Assumptions
+## Visual Direction
 
-- `src/World.tsx` and Dorokei gameplay are owned by other workers.
-- This directory should provide shared helpers and planning notes only.
-- If later work needs a richer surface matrix, extend `visibility.ts` instead of scattering mode checks.
-
+- Bright skybox with sun and clouds.
+- Warm cream floor with lightweight pattern overlays.
+- Light walls with colored primitive stripe textures.
+- Large mode gates in the entrance, not small side controls.

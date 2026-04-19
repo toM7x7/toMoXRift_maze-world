@@ -23,7 +23,12 @@ const cameraConfig: CameraConfig | undefined = (
   xriftConfig as { camera?: CameraConfig }
 ).camera
 
-const devSpawnPosition: [number, number, number] = [0, 1.6, 18]
+const searchParams = new URLSearchParams(window.location.search)
+const requestedMode = searchParams.get('mode')
+const devInitialMode = requestedMode === 'dorokei' || requestedMode === 'maze' ? requestedMode : 'entrance'
+const devSpawnPosition: [number, number, number] = devInitialMode === 'entrance'
+  ? [0, 1.6, 36.5]
+  : [0, 1.6, 18]
 
 createRoot(rootElement).render(
   <StrictMode>
@@ -33,7 +38,7 @@ createRoot(rootElement).render(
         camera={cameraConfig}
         spawnPosition={devSpawnPosition}
       >
-        <World />
+        <World initialMode={devInitialMode} />
       </DevEnvironment>
     </XRiftProvider>
   </StrictMode>,
